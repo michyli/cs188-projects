@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project 1 - CS188 Projects</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="main-title">Project 1</h1>
+
+      <section class="intro-section">
+        <h2 class="intro-title">Introduction</h2>
+        <p class="intro-text">
+          This project showcases a collection of historical photographs that
+          have been processed and colorized using advanced image processing
+          techniques. Each section displays a comparison between the original
+          white cropped version and the colorized result, demonstrating the
+          transformation of black and white imagery into vibrant, lifelike
+          representations.
+        </p>
+        <p class="intro-text">
+          The general approach taken to solve this task is to crop out the outer
+          white border automatically, and then finetune by applying extra crop
+          when necessary. The colorization is done by splitting the image into
+          three channels, and then aligning by comparing the red channel and
+          green channel to the blue channel. Each alignment is done by using
+          normalized cross-correlation to calculate the minimum difference
+          between the two channels. This is based on the assumption that the
+          channels share brightness, so where the image is bright, all channels
+          should be bright, giving us a correlation to work with. After
+          aligning, we stack all channels on top of each other, and we get the
+          colorized image as shown below.
+        </p>
+        <p class="intro-text">
+          Below, the left image is the cropped image used to generate the image
+          on the right. You can see that for most of the images, the white
+          border, and most of the black borders, has been cropped. This resulted
+          in more stable and accurate colorization results. The auto-crop only
+          tried to crop out the white borders, and stops when the entire column
+          or row isn't all white. Then it requires manual tuning and cropping to
+          further finetune the result.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img
+            src="assets/cathedral_white_cropped.jpg"
+            alt="Cathedral White Cropped"
+          />
+          <img src="assets/cathedral_colorized.jpg" alt="Cathedral Colorized" />
+        </div>
+        <h3 class="section-subtitle">Cathedral</h3>
+        <p class="section-text">
+          This image has a green displacement of (2, -14), and a red
+          displacement of (3, -26). The process did not use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img
+            src="assets/church_white_cropped.jpg"
+            alt="Church White Cropped"
+          />
+          <img src="assets/church_colorized.jpg" alt="Church Colorized" />
+        </div>
+        <h3 class="section-subtitle">Church</h3>
+        <p class="section-text">
+          This image has a green displacement of (0, -78), and a red
+          displacement of (0, -118). The process did use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img src="assets/emir_white_cropped.jpg" alt="Emir White Cropped" />
+          <img src="assets/emir_colorized.jpg" alt="Emir Colorized" />
+        </div>
+        <h3 class="section-subtitle">Emir</h3>
+        <p class="section-text">
+          This image has a green displacement of (38, -62), and a red
+          displacement of (70, -102). The process did use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img
+            src="assets/harvesters_white_cropped.jpg"
+            alt="Harvesters White Cropped"
+          />
+          <img
+            src="assets/harvesters_colorized.jpg"
+            alt="Harvesters Colorized"
+          />
+        </div>
+        <h3 class="section-subtitle">Harvesters</h3>
+        <p class="section-text">
+          This image has a green displacement of (5, -5), and a red displacement
+          of (5, 5). The process did not use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img src="assets/icon_white_cropped.jpg" alt="Icon White Cropped" />
+          <img src="assets/icon_colorized.jpg" alt="Icon Colorized" />
+        </div>
+        <h3 class="section-subtitle">Icon</h3>
+        <p class="section-text">
+          This image has a green displacement of (30, -30), and a red
+          displacement of (38, -38). The process did use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img
+            src="assets/italil_white_cropped.jpg"
+            alt="Italil White Cropped"
+          />
+          <img src="assets/italil_colorized.jpg" alt="Italil Colorized" />
+        </div>
+        <h3 class="section-subtitle">Italil</h3>
+        <p class="section-text">
+          This image has a green displacement of (30, -38), and a red
+          displacement of (46, -54). The process did use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img
+            src="assets/lastochikino_white_cropped.jpg"
+            alt="Lastochikino White Cropped"
+          />
+          <img
+            src="assets/lastochikino_colorized.jpg"
+            alt="Lastochikino Colorized"
+          />
+        </div>
+        <h3 class="section-subtitle">Lastochikino</h3>
+        <p class="section-text">
+          This image has a green displacement of (-4, -54), and a red
+          displacement of (-22, -22). The process did use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img
+            src="assets/lugano_white_cropped.jpg"
+            alt="Lugano White Cropped"
+          />
+          <img src="assets/lugano_colorized.jpg" alt="Lugano Colorized" />
+        </div>
+        <h3 class="section-subtitle">Lugano</h3>
+        <p class="section-text">
+          This image has a green displacement of (-5, -5), and a red
+          displacement of (-5, -5). The process did not use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img
+            src="assets/melons_white_cropped.jpg"
+            alt="Melons White Cropped"
+          />
+          <img src="assets/melons_colorized.jpg" alt="Melons Colorized" />
+        </div>
+        <h3 class="section-subtitle">Melons</h3>
+        <p class="section-text">
+          This image has a green displacement of (22, -22), and a red
+          displacement of (22, -22). The process did use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img
+            src="assets/monastery_white_cropped.jpg"
+            alt="Monastery White Cropped"
+          />
+          <img src="assets/monastery_colorized.jpg" alt="Monastery Colorized" />
+        </div>
+        <h3 class="section-subtitle">Monastery</h3>
+        <p class="section-text">
+          This image has a green displacement of (2, -16), and a red
+          displacement of (2, -23). The process did not use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img
+            src="assets/self_portrait_white_cropped.jpg"
+            alt="Self Portrait White Cropped"
+          />
+          <img
+            src="assets/self_portrait_colorized.jpg"
+            alt="Self Portrait Colorized"
+          />
+        </div>
+        <h3 class="section-subtitle">Self Portrait</h3>
+        <p class="section-text">
+          This image has a green displacement of (38, -30), and a red
+          displacement of (46, -30). The process did use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img src="assets/siren_white_cropped.jpg" alt="Siren White Cropped" />
+          <img src="assets/siren_colorized.jpg" alt="Siren Colorized" />
+        </div>
+        <h3 class="section-subtitle">Siren</h3>
+        <p class="section-text">
+          This image has a green displacement of (-22, -38), and a red
+          displacement of (-38, -70). The process did use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img
+            src="assets/three_generations_white_cropped.jpg"
+            alt="Three Generations White Cropped"
+          />
+          <img
+            src="assets/three_generations_colorized.jpg"
+            alt="Three Generations Colorized"
+          />
+        </div>
+        <h3 class="section-subtitle">Three Generations</h3>
+        <p class="section-text">
+          This image has a green displacement of (20, -30), and a red
+          displacement of (22, -38). The process did use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img
+            src="assets/tobolsk_white_cropped.jpg"
+            alt="Tobolsk White Cropped"
+          />
+          <img src="assets/tobolsk_colorized.jpg" alt="Tobolsk Colorized" />
+        </div>
+        <h3 class="section-subtitle">Tobolsk</h3>
+        <p class="section-text">
+          This image has a green displacement of (2, -7), and a red displacement
+          of (3, -14). The process did not use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img src="assets/camel_white_cropped.jpg" alt="Camel White Cropped" />
+          <img src="assets/camel_colorized.jpg" alt="Camel Colorized" />
+        </div>
+        <h3 class="section-subtitle">Camel</h3>
+        <p class="section-text">
+          This image has a green displacement of (-18, -46), and a red
+          displacement of (-38, -70). The process did use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img
+            src="assets/machine_white_cropped.jpg"
+            alt="Machine White Cropped"
+          />
+          <img src="assets/machine_colorized.jpg" alt="Machine Colorized" />
+        </div>
+        <h3 class="section-subtitle">Machine</h3>
+        <p class="section-text">
+          This image has a green displacement of (30, -22), and a red
+          displacement of (30, -38). The process did use image pyramid.
+        </p>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="content-section">
+        <div class="section-image-pair">
+          <img src="assets/tree_white_cropped.jpg" alt="Tree White Cropped" />
+          <img src="assets/tree_colorized.jpg" alt="Tree Colorized" />
+        </div>
+        <h3 class="section-subtitle">Tree</h3>
+        <p class="section-text">
+          This image has a green displacement of (-54, 46), and a red
+          displacement of (-78, 38). The process did use image pyramid.
+        </p>
+      </section>
+    </div>
+  </body>
+</html>
