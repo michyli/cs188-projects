@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project 2 - CS188 Projects</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="main-title">Project 2</h1>
+
+      <section class="part-section">
+        <h2 class="part-title">Part 1</h2>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Problem 1.1</h3>
+          <p class="section-text">
+            <strong>Convolution Implementation:</strong> I implemented
+            convolution using two different approaches: a 4-loop implementation
+            and a more efficient 2-loop implementation with padding.
+          </p>
+          <p class="section-text">
+            <strong>4-Loop Convolution Approach:</strong> The 4-loop
+            implementation uses four nested for loops to iterate through each
+            output pixel position (i, j) and each kernel element (k, l). For
+            each output position, it computes the sum of element-wise products
+            between the image patch and the kernel. This approach is
+            straightforward but inefficient because it requires four levels of
+            nested loops, resulting in O(H×W×K×L) operations where H×W is the
+            image size and K×L is the kernel size.
+          </p>
+          <p class="section-text">
+            <strong>2-Loop Convolution with Padding:</strong> The 2-loop
+            implementation is more efficient as it reduces the nested loops to
+            just two (for output positions i, j). For each position, it extracts
+            the corresponding image patch and uses numpy's vectorized operations
+            to compute the convolution. I added zero padding functionality to
+            maintain the output size equal to the input size, which is crucial
+            for preserving image dimensions in deep learning applications.
+          </p>
+          <p class="section-text">
+            <strong>Code Implementation:</strong>
+          </p>
+          <div class="code-snippet">
+            <h4>4-Loop Convolution:</h4>
+            <img
+              src="assets/4-loop.png"
+              alt="4-Loop Convolution Code"
+              class="code-image"
+            />
+          </div>
+          <div class="code-snippet">
+            <h4>2-Loop Convolution with Padding:</h4>
+            <img
+              src="assets/2-loop.png"
+              alt="2-Loop Convolution Code"
+              class="code-image"
+            />
+          </div>
+          <p class="section-text">
+            <strong>Results and Performance Comparison:</strong> The
+            implementation successfully processes the square portrait image and
+            generates 7 different convolution results, comparing our custom
+            implementations with scipy's convolve2d function. The results show
+            that our 2-loop implementation matches scipy's output with
+            negligible differences, validating the correctness of our approach.
+            <strong>Runtime Analysis:</strong> The 4-loop implementation is
+            significantly slower due to its O(H×W×K×L) complexity, while the
+            2-loop version with vectorized operations achieves much better
+            performance, though still slower than scipy's highly optimized C
+            implementation. <strong>Boundary Handling:</strong> Our
+            implementation uses zero-padding to handle boundaries, ensuring
+            output dimensions match input dimensions. This differs from scipy's
+            default 'full' mode but matches the 'same' mode behavior, making it
+            suitable for applications requiring dimension preservation.
+          </p>
+          <div class="section-image-wide">
+            <img src="assets/part1-1.png" alt="Convolution Results" />
+          </div>
+        </div>
+
+        <hr class="section-divider" />
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Problem 1.2</h3>
+          <p class="section-text">
+            <strong>Edge Detection Approach:</strong> I implemented edge
+            detection on the cameraman image using finite difference operators
+            to compute partial derivatives in the x and y directions. The
+            approach involves convolving the image with Dx = [1, 0, -1] and Dy =
+            [[1], [0], [-1]] operators to detect horizontal and vertical edges
+            respectively.
+          </p>
+          <p class="section-text">
+            <strong>Gradient Magnitude and Binarization:</strong> After
+            computing the partial derivatives, I calculated the gradient
+            magnitude using the formula √(Gx² + Gy²), which provides a measure
+            of edge strength at each pixel. To create a binary edge image, I
+            normalized the gradient magnitude to [0, 1] range and applied a
+            threshold T = 0.36. The binarization follows: Edge(i,j) = 1 if
+            Gradient_Mag(i,j) ≥ T, else Edge(i,j) = 0. This normalized threshold
+            approach suppresses noise while preserving significant edges.
+          </p>
+          <p class="section-text">
+            <strong>Implementation Details and Threshold Justification:</strong>
+            The implementation uses scipy.signal.convolve2d for efficient
+            convolution operations. The finite difference operators are flipped
+            before convolution to match the mathematical definition. The
+            normalized threshold T = 0.36 was chosen through careful
+            experimentation to balance edge detection sensitivity with noise
+            suppression. <strong>Edge/Noise Tradeoff:</strong> This threshold
+            value captures most significant edges (building outlines, facial
+            features) while suppressing texture noise and minor intensity
+            variations. A lower threshold would detect more edges but introduce
+            noise artifacts, while a higher threshold would miss important
+            structural details. The chosen value represents an optimal
+            compromise for the cameraman image, preserving essential edges while
+            maintaining clean binary output.
+          </p>
+          <div class="section-image-wide">
+            <img src="assets/part1-2.png" alt="Edge Detection Results" />
+          </div>
+        </div>
+
+        <hr class="section-divider" />
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Problem 1.3</h3>
+          <p class="section-text">
+            <strong>Derivative of Gaussian (DoG) Filter Approach:</strong> I
+            implemented the Derivative of Gaussian filter to address the noise
+            issues encountered in the basic edge detection from Problem 1.2. The
+            DoG approach combines Gaussian smoothing with derivative computation
+            in a single efficient operation.
+          </p>
+          <p class="section-text">
+            <strong>Two Equivalent Methods:</strong> I demonstrated two
+            mathematically equivalent approaches: (1) First blur the image with
+            a Gaussian kernel, then compute derivatives using finite difference
+            operators, and (2) Create derivative of Gaussian filters by
+            convolving the Gaussian kernel with Dx and Dy operators, then apply
+            these DoG filters directly to the original image. The mathematical
+            equivalence follows from the commutative property of convolution: (F
+            * g) * Dx = F * (g * Dx), where F is the input image, g is the
+            Gaussian kernel, and Dx is the finite difference operator.
+          </p>
+          <p class="section-text">
+            <strong>Implementation Details:</strong> I created a 15×15 Gaussian
+            kernel with σ = 2.0 using cv2.getGaussianKernel() and outer product.
+            The DoG filters were created by convolving the Gaussian kernel with
+            the finite difference operators Dx = [1, 0, -1] and Dy = [[1], [0],
+            [-1]]. The DoG approach is computationally more efficient as it
+            requires only one convolution operation instead of two separate
+            operations (blur + derivative).
+          </p>
+          <p class="section-text">
+            <strong>DoG Filter Visualization and Comparison:</strong> The
+            constructed DoG filters are visualized in the results, showing the
+            characteristic center-surround structure with positive and negative
+            lobes. These filters effectively combine smoothing and
+            differentiation in a single operation.
+            <strong>Comparison with Finite Difference Method:</strong>
+            The DoG approach produces significantly cleaner edge detection
+            results compared to the raw finite difference method from Problem
+            1.2. The Gaussian pre-smoothing eliminates high-frequency noise that
+            would otherwise be amplified by the derivative operation, resulting
+            in more coherent edge maps with reduced noise artifacts. The
+            gradient magnitude from DoG filtering shows smoother, more
+            continuous edges while preserving important structural information.
+            I used a dynamic threshold based on the gradient magnitude range
+            (10% of the range) to create a clean binary edge image that captures
+            significant edges while suppressing noise.
+          </p>
+          <div class="section-image-wide">
+            <img
+              src="assets/part1-3.png"
+              alt="Derivative of Gaussian Results"
+            />
+          </div>
+        </div>
+      </section>
+
+      <hr class="section-divider" />
+
+      <section class="part-section">
+        <h2 class="part-title">Part 2</h2>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Problem 2.1: Unsharp Masking</h3>
+          <p class="section-text">
+            <strong>Unsharp Masking Approach:</strong> I implemented the unsharp
+            masking technique to enhance image sharpness by emphasizing
+            high-frequency components. The approach is based on the mathematical
+            derivation: Sharpened Image = Image + α × (Image - Low Frequencies)
+            = F × ((1 + α) × unity_impulse - α × gaussian_filter), where F is
+            the original image, α is the sharpening strength parameter, and the
+            gaussian_filter acts as a low-pass filter. This technique combines
+            three key components: a Gaussian filter for extracting low
+            frequencies, a unity impulse (identity) filter with all zeros except
+            a 1 at the center, and the combined unsharp mask filter that
+            enhances edges and fine details in a single convolution operation.
+          </p>
+          <p class="section-text">
+            <strong>Unsharp Mask Components and Sharpening Variations:</strong>
+            The visualization demonstrates the three key components of unsharp
+            masking: (1) the original image, (2) the blurred (low-frequency)
+            version obtained through Gaussian filtering, (3) the high-frequency
+            component extracted by subtracting the blurred version from the
+            original, and (4) the final sharpened result. The results show how
+            varying the sharpening amount (α parameter) affects the enhancement:
+            moderate values (α = 1.0-2.0) provide natural-looking sharpening,
+            while higher values (α > 3.0) can introduce oversharpening artifacts
+            and halo effects around edges.
+          </p>
+          <p class="section-text">
+            <strong>Blur and Sharpen Recovery Analysis:</strong> The fundamental
+            question of whether blurring followed by sharpening can return the
+            same original image has a definitive answer:
+            <em>No, perfect recovery is not possible</em>. When an image is
+            blurred using a Gaussian filter, high-frequency information (fine
+            details and sharp edges) is irreversibly lost through the low-pass
+            filtering process. While unsharp masking can partially recover
+            apparent sharpness by enhancing the remaining edge information, it
+            cannot recreate the original high-frequency content that was removed
+            during blurring. The sharpening process may introduce artifacts,
+            oversharpening effects, or amplify noise, and the recovered image
+            will always be an approximation of the original. This limitation is
+            fundamental to signal processing: information lost through filtering
+            cannot be perfectly reconstructed without additional prior
+            knowledge.
+          </p>
+          <div class="section-image-wide">
+            <img
+              src="assets/unsharp_mask_results.png"
+              alt="Unsharp Masking Results showing Palace sharpening and blur-sharpen experiment"
+            />
+          </div>
+        </div>
+
+        <hr class="section-divider" />
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Problem 2.2: Hybrid Images</h3>
+          <p class="section-text">
+            <strong>Hybrid Image Approach:</strong> I implemented the hybrid
+            image technique based on the SIGGRAPH 2006 paper by Oliva, Torralba,
+            and Schyns. The approach creates static images that change
+            interpretation based on viewing distance by exploiting the fact that
+            high frequencies dominate perception when available, while only low
+            frequencies can be seen from a distance. The implementation follows
+            a systematic process: (1) align two input images to ensure proper
+            perceptual grouping, (2) apply a low-pass Gaussian filter to extract
+            smooth, low-frequency components from the "far" image (Derek), (3)
+            apply a high-pass filter (original minus Gaussian) to extract sharp
+            details from the "close" image (Nutmeg), and (4) combine the
+            filtered images using simple addition: image_hybrid =
+            derek_low_passed + nutmeg_high_passed. The alignment process uses
+            manually tuned parameters including rotation (35°), translation
+            (136, -30 pixels), and scaling to perfectly align the cat's face
+            with Derek's facial features.
+          </p>
+          <p class="section-text">
+            <strong>Filter Parameter Selection:</strong> The cutoff frequency
+            threshold was chosen through systematic experimentation to achieve
+            optimal hybrid effects. After testing various sigma values, I
+            selected sigma = 10 for the Gaussian filter, which corresponds to a
+            cutoff frequency of approximately 0.68 cycles per pixel with a
+            kernel size of 31×31. This parameter strikes the right balance: it
+            preserves enough low-frequency information from Derek's face to be
+            recognizable from a distance, while allowing sufficient
+            high-frequency detail from Nutmeg to dominate close-up viewing.
+            Values that were too small resulted in insufficient blurring of
+            Derek, making both images compete at all viewing distances, while
+            values that were too large removed too much detail from Nutmeg,
+            weakening the close-up effect. The chosen threshold creates a clear
+            perceptual switch between the two interpretations based on viewing
+            distance.
+          </p>
+          <div class="section-image-wide">
+            <img
+              src="assets/hybrid_derek_nutmeg.png"
+              alt="Hybrid Image Creation Process showing Derek and Nutmeg transformation"
+            />
+          </div>
+          <div class="section-image-wide">
+            <img
+              src="assets/hybrid_frequency_analysis.png"
+              alt="Fourier Transform Analysis of Hybrid Image showing frequency domain representations"
+            />
+          </div>
+          <div class="section-image-wide">
+            <img
+              src="assets/hybrid_man2___tiger.png"
+              alt="Hybrid Image of Man2 and Tiger showing filtering process and final result"
+            />
+          </div>
+          <div class="section-image-wide">
+            <img
+              src="assets/hybrid_superman___lion.png"
+              alt="Hybrid Image of Superman and Lion showing filtering process and final result"
+            />
+          </div>
+        </div>
+
+        <hr class="section-divider" />
+
+        <div class="content-section">
+          <h3 class="section-subtitle">
+            Problem 2.3 + 2.4: Multi-band Blending with Gaussian and Laplacian
+            Stacks
+          </h3>
+          <p class="section-text">
+            <strong>Gaussian and Laplacian Stack Implementation:</strong> I
+            implemented a comprehensive multi-band image blending system based
+            on the seminal 1983 paper by Burt and Adelson. Unlike traditional
+            pyramids that downsample images at each level, my implementation
+            uses stacks where all levels maintain the original image dimensions,
+            allowing for more precise frequency decomposition and
+            reconstruction. The Gaussian stack is created by iteratively
+            applying a 19×19 Gaussian filter with σ = 3.0 to generate 20
+            progressively blurred levels, each capturing different frequency
+            bands while preserving spatial resolution. The Laplacian stack is
+            then derived by computing the difference between consecutive
+            Gaussian levels: Laplacian[i] = Gaussian[i] - Gaussian[i+1],
+            resulting in 19 levels that isolate specific frequency bands from
+            high to low frequencies.
+          </p>
+          <p class="section-text">
+            <strong>Multi-band Blending Algorithm:</strong> The blending process
+            operates on the principle that seamless image fusion requires
+            careful handling of different frequency components. For each pair of
+            input images (apple and orange), I create separate Gaussian and
+            Laplacian stacks, along with a Gaussian stack for the blending mask.
+            The algorithm blends corresponding levels of the Laplacian stacks
+            using the appropriately smoothed mask at each frequency band:
+            Blended_Laplacian[i] = Mask[i] × Laplacian1[i] + (1 - Mask[i]) ×
+            Laplacian2[i]. This frequency-specific blending ensures that
+            high-frequency details (edges, textures) are blended with sharp mask
+            transitions, while low-frequency components (colors, gradients) use
+            progressively smoother mask transitions. The final image is
+            reconstructed by summing all blended Laplacian levels plus the
+            blended lowest-frequency Gaussian level, effectively combining all
+            frequency bands into a seamless result.
+          </p>
+          <p class="section-text">
+            <strong>Mask Design and Implementation:</strong> I implemented three
+            types of blending masks to demonstrate different fusion scenarios:
+            (1) Left-right masks with smooth transitions for creating "oraple"
+            combinations where the left half shows the apple and right half
+            shows the orange, (2) Top-bottom masks for vertical blending
+            transitions, and (3) Irregular polygon masks using 10 control points
+            to create more complex blending regions. Each mask undergoes the
+            same Gaussian stack processing as the input images, ensuring that
+            the mask smoothness matches the frequency content being blended at
+            each level. This approach eliminates visible seams that would occur
+            with simple alpha blending, as the multi-band technique naturally
+            handles the frequency-dependent nature of human visual perception.
+          </p>
+          <p class="section-text">
+            <strong
+              >Recreation of Figure 3.42 and Additional Custom Blends:</strong
+            >
+            The implementation successfully recreates the classic "oraple"
+            effect from Figure 3.42 in Szelski, demonstrating both left-right
+            linear blending and irregular polygon-based blending as shown in
+            outcomes (a) through (l).
+            <strong>Two Additional Custom Blended Images:</strong> Beyond the
+            apple-orange blending, I created two additional custom blends: (1)
+            Day-Night scene blending using a larger, smoother irregular polygon
+            mask positioned lower than center, showcasing the algorithm's
+            ability to handle dramatic lighting differences, and (2) Bridge
+            day-night blending with an irregular wavy vertical boundary,
+            demonstrating organic transitions while maintaining the left-right
+            blending concept with sinusoidal mask variations.
+          </p>
+          <p class="section-text">
+            <strong>Technical Parameters and Visualization:</strong> The
+            implementation uses carefully chosen parameters based on the
+            original research: Gaussian kernel width of 19 pixels, standard
+            deviation σ = 3.0, 20 Gaussian stack levels producing 19 Laplacian
+            levels, and 10-point polygons for irregular masks. The visualization
+            system shows the contribution of different frequency bands to the
+            final result, illustrating how high-frequency details from both
+            images are preserved while low-frequency components blend smoothly
+            across the transition region. The process visualization clearly
+            demonstrates the Gaussian and Laplacian stack decomposition, masked
+            frequency components at different levels, and the final
+            reconstruction process.
+          </p>
+
+          <div class="section-image-wide">
+            <img
+              src="assets/apple_orange_figure_342_style.png"
+              alt="Apple-Orange Blending Figure 3.42 Style showing frequency decomposition"
+            />
+            <p class="image-caption">
+              Apple-Orange Blending (Figure 3.42 Style): Rows 1-3 show high,
+              medium, and low frequency Laplacian levels (0, 2, 4) with
+              mask-weighted contributions. Left column shows apple components,
+              middle shows orange components, right shows blended frequency
+              bands. Bottom row displays original masked images and final blend
+              result.
+            </p>
+          </div>
+
+          <div class="section-image-wide">
+            <img
+              src="assets/gaussian_laplacian_stacks.png"
+              alt="Gaussian and Laplacian Stack Demonstration showing different frequency levels"
+            />
+            <p class="image-caption">
+              Gaussian and Laplacian Stack Demonstration: Top row shows 5 levels
+              of Gaussian stack (progressively blurred), bottom row shows
+              corresponding Laplacian levels (frequency bands)
+            </p>
+          </div>
+
+          <div class="section-image-wide">
+            <img
+              src="assets/left_right_blending_process.png"
+              alt="Left-Right Multi-band Blending Process showing frequency decomposition and reconstruction"
+            />
+            <p class="image-caption">
+              Left-Right Multi-band Blending Process: Shows masked frequency
+              components at 3 different levels (high to low frequency) and final
+              reconstruction. Left column: Apple components, Middle column:
+              Orange components, Right column: Blended results
+            </p>
+          </div>
+
+          <div class="section-image-wide">
+            <img
+              src="assets/irregular_blending_process.png"
+              alt="Irregular Multi-band Blending Process using polygon mask"
+            />
+            <p class="image-caption">
+              Irregular Multi-band Blending Process: Demonstrates polygon-based
+              blending with frequency decomposition. The 10-point polygon mask
+              creates complex blending boundaries that are handled seamlessly
+              across different frequency bands
+            </p>
+          </div>
+
+          <div class="section-image-wide">
+            <img
+              src="assets/day_night_blending_process.png"
+              alt="Day-Night Scene Multi-band Blending Process"
+            />
+            <p class="image-caption">
+              Day-Night Scene Multi-band Blending Process: Shows the blending of
+              day and night scenes using a larger, smoother irregular polygon
+              mask positioned lower than center. Demonstrates handling of
+              dramatic lighting differences
+            </p>
+          </div>
+
+          <div class="section-image-wide">
+            <img
+              src="assets/bridge_blending_process.png"
+              alt="Bridge Day-Night Irregular Vertical Blending Process"
+            />
+            <p class="image-caption">
+              Bridge Day-Night Irregular Vertical Blending Process: Features an
+              irregular wavy vertical boundary instead of a straight line. The
+              sinusoidal mask creates organic transitions while maintaining the
+              left-right blending concept
+            </p>
+          </div>
+
+          <div class="section-image-wide">
+            <img
+              src="assets/all_blending_results.png"
+              alt="Complete Multi-band Blending Results Comparison"
+            />
+            <p class="image-caption">
+              Complete Multi-band Blending Results: Four different blending
+              scenarios demonstrating various mask types and image combinations.
+              Row 1: Apple-Orange left-right blend, Row 2: Apple-Orange
+              irregular polygon, Row 3: Day-Night scene polygon blend, Row 4:
+              Bridge day-night wavy vertical blend
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>
