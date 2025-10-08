@@ -8,14 +8,558 @@
   </head>
   <body>
     <div class="container">
-      <h1 class="main-title">Project 3A</h1>
+      <h1 class="main-title">Project 3A: Image Warping and Mosaicing</h1>
 
+      <!-- Part A.1: Shoot and Digitize Pictures -->
       <section class="part-section">
-        <h2 class="part-title">Part 1</h2>
+        <h2 class="part-title">Part A.1: Shoot and Digitize Pictures</h2>
 
         <div class="content-section">
-          <h3 class="section-subtitle">Problem 1.1</h3>
-          <p class="section-text">Content for Problem 1.1 will go here.</p>
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="assets/ParkerL.jpg"
+                alt="Leftmost Image"
+                class="result-image"
+              />
+              <p class="image-subtitle">Street Leftmost Image</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="assets/ParkerM.jpg"
+                alt="Middle Image"
+                class="result-image"
+              />
+              <p class="image-subtitle">Street Middle Image</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="assets/ParkerR.jpg"
+                alt="Rightmost Image"
+                class="result-image"
+              />
+              <p class="image-subtitle">Street Rightmost Image</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="content-section">
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="assets/RoomL.jpg"
+                alt="Room Leftmost"
+                class="result-image"
+              />
+              <p class="image-subtitle">Room Leftmost Image</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="assets/RoomM.jpg"
+                alt="Room Middle"
+                class="result-image"
+              />
+              <p class="image-subtitle">Room Middle Image</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="assets/RoomR.jpg"
+                alt="Room Rightmost"
+                class="result-image"
+              />
+              <p class="image-subtitle">Room Rightmost Image</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Part A.2: Recover Homographies -->
+      <section class="part-section">
+        <h2 class="part-title">Part A.2: Recover Homographies</h2>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Overview</h3>
+          <p class="section-text">
+            We compute 3×3 homographies from point correspondences and display
+            the correspondences and recovered matrices for each image pair.
+          </p>
+        </div>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Implementation Details</h3>
+          <p class="section-text">
+            For each correspondence (x, y) → (x', y'), we get two linear
+            equations:
+          </p>
+          <div class="equation">
+            <pre>
+-x  -y  -1   0   0   0  x·x'  y·x'  x' · h = 0
+ 0   0   0  -x  -y  -1  x·y'  y·y'  y' · h = 0
+            </pre>
+          </div>
+          <p class="section-text">
+            With <em>n</em> correspondences, we get a system of 2<em>n</em>
+            equations with 9 unknowns. For <em>n</em> ≥ 4, this is an
+            overdetermined system solved using
+            <strong>Singular Value Decomposition (SVD)</strong>. The solution is
+            the last row of <strong>V<sup>T</sup></strong> (corresponding to the
+            smallest singular value).
+          </p>
+        </div>
+
+        <!-- ParkerM → ParkerL -->
+        <div class="content-section">
+          <h3 class="section-subtitle">1. ParkerM → ParkerL Correspondence</h3>
+          <p class="section-text">
+            <strong>Number of correspondences:</strong> 11 point pairs
+          </p>
+
+          <div class="image-container">
+            <img
+              src="assets/ParkerM_ParkerL_correspondences.png"
+              alt="ParkerM to ParkerL Correspondences"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Point correspondences between ParkerL (left) and ParkerM (right).
+              Each numbered point shows a matching feature between the two
+              images.
+            </p>
+          </div>
+
+          <div class="code-section">
+            <h4>Linear System</h4>
+            <p class="section-text">
+              System size: <strong>22 equations × 9 unknowns</strong>
+            </p>
+            <pre class="code-block">
+Matrix A (sample of first 6 rows):
+[[-142.00  -824.00   -1.00     0.00     0.00     0.00  100252.00  581744.00  706.00]
+ [   0.00     0.00     0.00  -142.00  -824.00   -1.00  114310.00  663320.00  805.00]
+ [-298.00  -589.00   -1.00     0.00     0.00     0.00  245552.00  485336.00  824.00]
+ [   0.00     0.00     0.00  -298.00  -589.00   -1.00  174330.00  344565.00  585.00]
+ [-633.00  -728.00   -1.00     0.00     0.00     0.00  755802.00  869232.00 1194.00]
+ [   0.00     0.00     0.00  -633.00  -728.00   -1.00  451329.00  519064.00  713.00]]
+            </pre>
+          </div>
+
+          <div class="code-section">
+            <h4>Recovered Homography Matrix</h4>
+            <pre class="code-block">
+H = [  0.51295845    0.02323389  553.21711993 ]
+    [ -0.25690187    0.80472327  108.57572635 ]
+    [ -0.00034068   -0.00004856    1.00000000 ]
+            </pre>
+          </div>
+        </div>
+
+        <!-- ParkerM → ParkerR -->
+        <div class="content-section">
+          <h3 class="section-subtitle">2. ParkerM → ParkerR Correspondence</h3>
+          <p class="section-text">
+            <strong>Number of correspondences:</strong> 18 point pairs
+          </p>
+
+          <div class="image-container">
+            <img
+              src="assets/ParkerM_ParkerR_correspondences.png"
+              alt="ParkerM to ParkerR Correspondences"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Point correspondences between ParkerM (left) and ParkerR (right).
+              Each numbered point shows a matching feature between the two
+              images.
+            </p>
+          </div>
+
+          <div class="code-section">
+            <h4>Linear System</h4>
+            <p class="section-text">
+              System size: <strong>36 equations × 9 unknowns</strong>
+            </p>
+            <pre class="code-block">
+Matrix A (sample of first 6 rows):
+[[-634.00  -731.00   -1.00     0.00     0.00     0.00  101440.00  116986.00  160.00]
+ [   0.00     0.00     0.00  -634.00  -731.00   -1.00  460284.00  530806.00  726.00]
+ [-667.00  -915.00   -1.00     0.00     0.00     0.00  124754.00  171105.00  187.00]
+ [   0.00     0.00     0.00  -667.00  -915.00   -1.00  615054.00  843630.00  922.00]
+ [-689.00  -978.00   -1.00     0.00     0.00     0.00  137800.00  195600.00  200.00]
+ [   0.00     0.00     0.00  -689.00  -978.00   -1.00  683488.00  970176.00  992.00]]
+            </pre>
+          </div>
+
+          <div class="code-section">
+            <h4>Recovered Homography Matrix</h4>
+            <pre class="code-block">
+H = [  1.71550153   -0.05379969  -840.59328302 ]
+    [  0.38895327    1.46445587  -346.07989959 ]
+    [  0.00056259   -0.00002259    1.00000000 ]
+            </pre>
+          </div>
+        </div>
+
+        <!-- RoomL → RoomM -->
+        <div class="content-section">
+          <h3 class="section-subtitle">3. RoomL → RoomM Correspondence</h3>
+          <p class="section-text">
+            <strong>Number of correspondences:</strong> 12 point pairs
+          </p>
+
+          <div class="image-container">
+            <img
+              src="assets/RoomL_RoomM_correspondences.png"
+              alt="RoomL to RoomM Correspondences"
+              class="result-image"
+            />
+          </div>
+          <div class="code-section">
+            <h4>Recovered Homography Matrix</h4>
+            <pre class="code-block">
+H = [  2.287789    0.146162  -1753.959644 ]
+    [  0.494935    1.991650   -517.710469 ]
+    [  0.000957    0.000038      1.000000 ]
+            </pre>
+          </div>
+        </div>
+
+        <!-- RoomM → RoomR -->
+        <div class="content-section">
+          <h3 class="section-subtitle">4. RoomM → RoomR Correspondence</h3>
+          <p class="section-text">
+            <strong>Number of correspondences:</strong> 13 point pairs
+          </p>
+
+          <div class="image-container">
+            <img
+              src="assets/RoomM_RoomR_correspondences.png"
+              alt="RoomM to RoomR Correspondences"
+              class="result-image"
+            />
+          </div>
+          <div class="code-section">
+            <h4>Recovered Homography Matrix</h4>
+            <pre class="code-block">
+H = [  1.885811    0.081888  -1182.602298 ]
+    [  0.350573    1.638691   -315.458232 ]
+    [  0.000693    0.000007      1.000000 ]
+            </pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Part A.3: Warp the Images -->
+      <section class="part-section">
+        <h2 class="part-title">Part A.3: Warp the Images</h2>
+
+        <div class="content-section">
+          <p class="section-text">
+            I implemented two interpolation schemes from the ground up—Nearest
+            Neighbor and Bilinear—and paired them with inverse warping to apply
+            homographies. Nearest Neighbor simply rounds to the closest pixel so
+            it’s extremely fast but shows blocky artifacts. Bilinear blends the
+            four surrounding pixels to produce smoother results at a slightly
+            higher compute cost. I first wrote both using explicit per‑pixel
+            loops (slow), then rewrote them with NumPy vectorization, which made
+            both methods effectively instant. Each warp predicts the output
+            canvas by mapping the image corners through the homography, then
+            samples input coordinates via H⁻¹ before applying the interpolation.
+          </p>
+        </div>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Rectification Test</h3>
+          <p class="section-text">
+            To test the warping functions, we perform
+            <strong>rectification</strong> - transforming a distorted
+            rectangular object into a proper rectangle. This verifies that our
+            homography computation and warping are working correctly.
+          </p>
+          <p class="section-text">
+            <strong>Example:</strong> A light switch plate photographed at an
+            angle appears as a distorted quadrilateral due to perspective. We
+            rectify it by:
+          </p>
+          <ol class="results-list">
+            <li>
+              Selecting the 4 corners of the light switch plate in the image
+            </li>
+            <li>
+              Computing homography to map these corners to a perfect rectangle
+            </li>
+            <li>
+              Warping the image using this homography with both interpolation
+              methods
+            </li>
+          </ol>
+
+          <div class="image-container">
+            <img
+              src="assets/rectification_comparison.png"
+              alt="Rectification Comparison"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Rectification test on a light switch plate. Left: Original image
+              with perspective distortion (4 corners marked as TL, TR, BR, BL).
+              Middle: Rectified using nearest neighbor interpolation. Right:
+              Rectified using bilinear interpolation. The distorted
+              quadrilateral is successfully transformed into a proper rectangle.
+            </p>
+          </div>
+        </div>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Additional Rectification: Window</h3>
+          <div class="image-container">
+            <img
+              src="assets/rectification_window_comparison.png"
+              alt="Window Rectification Comparison"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Rectification of a window using four clicked corners (from
+              <code>Window_Window.json</code>). The warped results compare
+              Nearest Neighbor and Bilinear interpolation.
+            </p>
+          </div>
+        </div>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Interpolation Quality Comparison</h3>
+          <p class="section-text">
+            A zoomed-in comparison highlights the difference in quality between
+            the two interpolation methods:
+          </p>
+
+          <div class="image-container">
+            <img
+              src="assets/interpolation_comparison_zoomed.png"
+              alt="Interpolation Comparison Zoomed"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Zoomed comparison showing nearest neighbor (left) with visible
+              pixelation/blockiness versus bilinear interpolation (right) with
+              smoother transitions between pixels.
+            </p>
+          </div>
+        </div>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Trade-offs Analysis</h3>
+          <div class="results-section">
+            <h4>Nearest Neighbor Interpolation</h4>
+            <p class="section-text"><strong>Advantages:</strong></p>
+            <ul class="results-list">
+              <li>
+                <strong>Speed:</strong> Very fast - only requires rounding
+                coordinates and single pixel lookup
+              </li>
+              <li>
+                <strong>Simplicity:</strong> Easy to implement and understand
+              </li>
+              <li>
+                <strong>No blurring:</strong> Preserves sharp edges (though may
+                introduce artifacts)
+              </li>
+            </ul>
+            <p class="section-text"><strong>Disadvantages:</strong></p>
+            <ul class="results-list">
+              <li>
+                <strong>Quality:</strong> Produces blocky, pixelated results
+              </li>
+              <li>
+                <strong>Aliasing:</strong> Visible stair-step artifacts on edges
+              </li>
+            </ul>
+          </div>
+
+          <div class="results-section">
+            <h4>Bilinear Interpolation</h4>
+            <p class="section-text"><strong>Advantages:</strong></p>
+            <ul class="results-list">
+              <li>
+                <strong>Quality:</strong> Produces smooth, visually pleasing
+                results
+              </li>
+              <li>
+                <strong>Anti-aliasing:</strong> Reduces jagged edges and
+                artifacts
+              </li>
+              <li>
+                <strong>Better for visualization:</strong> More suitable for
+                display purposes
+              </li>
+            </ul>
+            <p class="section-text"><strong>Disadvantages:</strong></p>
+            <ul class="results-list">
+              <li>
+                <strong>Speed:</strong> Slower - requires 4 pixel lookups and
+                weighted averaging
+              </li>
+              <li><strong>Slight blurring:</strong> Can soften fine details</li>
+            </ul>
+          </div>
+
+          <p class="section-text">
+            <strong>Conclusion:</strong> For this project, bilinear
+            interpolation is preferred despite the computational cost because
+            the quality improvement is substantial and modern hardware can
+            handle the processing requirements efficiently.
+          </p>
+        </div>
+      </section>
+
+      <!-- Part A.4: Blend the Images into a Mosaic -->
+      <section class="part-section">
+        <h2 class="part-title">Part A.4: Blend the Images into a Mosaic</h2>
+
+        <div class="content-section">
+          <p class="section-text">
+            To build each panorama, I first choose the middle view as the
+            reference and compute homographies that map the side images into its
+            frame. I then determine a shared canvas by transforming all image
+            corners and apply a single inverse warp per image directly into that
+            canvas (including the reference, via a global translation) to avoid
+            any left‑edge bias. Finally, I blend the stack using distance‑based
+            alpha feathering so that pixels near image centers contribute more
+            than those near edges, producing seamless transitions in overlaps.
+          </p>
+        </div>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Source Images</h3>
+          <p class="section-text">
+            Three images captured from different viewpoints:
+          </p>
+
+          <div class="image-container">
+            <img
+              src="assets/mosaic_source_images.png"
+              alt="Source Images"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Source images: ParkerL (left), ParkerM (middle), ParkerR (right).
+              These three images will be stitched together to create panoramic
+              mosaics.
+            </p>
+          </div>
+        </div>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Mosaic 1: Left + Middle</h3>
+          <p class="section-text">
+            First panorama combining the left and middle images.
+          </p>
+
+          <div class="image-container">
+            <img
+              src="assets/mosaic_L_M.jpg"
+              alt="Mosaic Left + Middle"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Mosaic combining ParkerL and ParkerM. The images are seamlessly
+              blended in the overlap region using distance-based alpha
+              feathering. Note the smooth transition with no visible seam.
+            </p>
+          </div>
+        </div>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Mosaic 2: Middle + Right</h3>
+          <p class="section-text">
+            Second panorama combining the middle and right images.
+          </p>
+
+          <div class="image-container">
+            <img
+              src="assets/mosaic_M_R.jpg"
+              alt="Mosaic Middle + Right"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Mosaic combining ParkerM and ParkerR. With 18 carefully selected
+              correspondence points (increased from 12), the alignment is
+              significantly improved. The weighted averaging successfully
+              eliminates hard edges and creates a natural-looking transition.
+            </p>
+          </div>
+        </div>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Mosaic 3: Full Panorama (L + M + R)</h3>
+          <p class="section-text">
+            Complete panorama combining all three images into one wide-angle
+            view. ParkerM (middle) is used as the unwarped reference frame, with
+            ParkerL and ParkerR warped and blended to align with it.
+          </p>
+
+          <div class="image-container">
+            <img
+              src="assets/mosaic_L_M_R.jpg"
+              alt="Full Panorama"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Full panorama combining all three source images (ParkerL, ParkerM,
+              ParkerR). The mosaic successfully creates a seamless wide-angle
+              view of the street scene, with smooth blending in all overlap
+              regions.
+            </p>
+          </div>
+        </div>
+
+        <!-- Room mosaics -->
+        <div class="content-section">
+          <h3 class="section-subtitle">Room Mosaics</h3>
+
+          <div class="image-container">
+            <img
+              src="assets/room_mosaic_source_images.png"
+              alt="Room Sources"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Room source images: RoomL, RoomM, RoomR.
+            </p>
+          </div>
+
+          <div class="image-container">
+            <img
+              src="assets/room_mosaic_L_M.jpg"
+              alt="Room L+M"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Room mosaic: Left + Middle (RoomM as reference).
+            </p>
+          </div>
+
+          <div class="image-container">
+            <img
+              src="assets/room_mosaic_M_R.jpg"
+              alt="Room M+R"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Room mosaic: Middle + Right (RoomM as reference).
+            </p>
+          </div>
+
+          <div class="image-container">
+            <img
+              src="assets/room_mosaic_L_M_R.jpg"
+              alt="Room Full Panorama"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Room full panorama (Left + Middle + Right) blended with
+              distance-based alpha.
+            </p>
+          </div>
         </div>
       </section>
     </div>
