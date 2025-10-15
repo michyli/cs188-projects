@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project 3B - CS188 Projects</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="main-title">Project 3B: Feature Matching and Autostitching</h1>
+
+      <!-- Part B.1: Harris Corner Detection -->
+      <section class="part-section">
+        <h2 class="part-title">Part B.1: Harris Corner Detection and ANMS</h2>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Approach</h3>
+          <p class="section-text">
+            I implemented Harris corner detection using the provided sample code
+            with adjusted parameters to prevent memory issues during ANMS
+            computation. By setting <code>min_distance=5</code> and
+            <code>threshold_rel=0.01</code> in the
+            <code>peak_local_max</code> function, I reduced the initial corner
+            count from ~195k to ~4k corners, making subsequent pairwise distance
+            calculations computationally feasible. For Adaptive Non-Maximal
+            Suppression (ANMS), I implemented the algorithm from Section 3 of
+            the paper, which computes the minimum suppression radius r_i for
+            each corner i as the minimum distance to any neighbor j satisfying
+            f(x_i) &lt; c_robust × f(x_j), with c_robust=0.9. This ensures
+            neighbors must be significantly stronger (&gt;1.11×) for
+            suppression. I then select the 500 interest points with the largest
+            suppression radii, resulting in spatially well-distributed features
+            across the image.
+          </p>
+        </div>
+
+        <hr class="section-divider" />
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Harris Corners (without ANMS)</h3>
+          <div class="image-container">
+            <img
+              src="assets/harris_corners.jpg"
+              alt="Harris Corners Detection"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Harris corner detection detected 4,134 corners on the street
+              scene. Corners are marked with red crosses. Notice the high
+              density of corners in textured regions like trees and foliage,
+              while smoother areas like the sky and road have fewer detections.
+              The edge_discard parameter ensures corners near image boundaries
+              are excluded.
+            </p>
+          </div>
+        </div>
+
+        <hr class="section-divider" />
+
+        <div class="content-section">
+          <h3 class="section-subtitle">ANMS Selected Corners</h3>
+          <div class="image-container">
+            <img
+              src="assets/anms_corners.jpg"
+              alt="ANMS Selected Corners"
+              class="result-image"
+            />
+            <p class="image-caption">
+              After applying Adaptive Non-Maximal Suppression (ANMS), 500
+              corners were selected from the original 4,134. The selected
+              corners are more evenly distributed across the image, avoiding
+              clustering in high-texture regions. ANMS ensures that each
+              selected corner has a large suppression radius, meaning it's the
+              strongest corner in its local neighborhood, which improves feature
+              matching robustness in later stages.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Part B.2: Feature Descriptor Extraction -->
+      <section class="part-section">
+        <h2 class="part-title">Part B.2: Feature Descriptor Extraction</h2>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Approach</h3>
+          <p class="section-text">
+            I implemented feature descriptor extraction following Section 4 of
+            the paper. For each interest point at location (x, y), I extract an
+            8×8 descriptor by sampling from a larger 40×40 pixel window with a
+            spacing of s=5 pixels between samples. This low-frequency sampling
+            provides robustness to interest point location errors, as described
+            in the paper. Each descriptor is then bias/gain normalized to have
+            mean=0 and standard deviation=1, making the features invariant to
+            affine changes in intensity. As instructed, I skipped the Haar
+            wavelet transform section and work directly with the normalized
+            64-dimensional descriptor vectors (8×8 = 64 values).
+          </p>
+        </div>
+
+        <hr class="section-divider" />
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Extracted Feature Descriptors</h3>
+          <div class="image-container">
+            <img
+              src="assets/feature_descriptors.jpg"
+              alt="Feature Descriptors"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Visualization of 16 extracted 8×8 feature descriptors sampled from
+              different locations across the image. Each patch shows the
+              normalized intensity values (mean=0, std=1) at the sample points.
+              The descriptors capture local image structure with varying
+              patterns corresponding to edges, corners, and texture at different
+              locations. Black represents values below the mean, white
+              represents values above the mean, and gray represents near-mean
+              values.
+            </p>
+          </div>
+        </div>
+
+        <hr class="section-divider" />
+
+        <div class="content-section">
+          <h3 class="section-subtitle">
+            Detailed View: 40×40 Windows vs 8×8 Descriptors
+          </h3>
+          <div class="image-container">
+            <img
+              src="assets/feature_descriptors_detailed.jpg"
+              alt="Feature Descriptors Detailed"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Detailed comparison showing how 8×8 descriptors are sampled from
+              40×40 windows. Top row: Original 40×40 pixel windows around each
+              interest point with red dots marking the 64 sample locations (8×8
+              grid with spacing of 5 pixels). Bottom row: The resulting 8×8
+              normalized descriptors. This visualization demonstrates how the
+              low-frequency sampling captures the essential local structure
+              while providing robustness to small location errors and avoiding
+              aliasing artifacts.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Part B.3: Feature Matching -->
+      <section class="part-section">
+        <h2 class="part-title">Part B.3: Feature Matching</h2>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Approach</h3>
+          <p class="section-text">
+            I implemented feature matching following Section 5 of the paper
+            using Lowe's ratio test. For each feature in the first image, I
+            compute the Euclidean distance to all features in the second image
+            and identify the first nearest neighbor (1-NN) and second nearest
+            neighbor (2-NN). A match is accepted only if the ratio e1-NN / e2-NN
+            is below a threshold. Based on Figure 6b from the paper, which shows
+            the probability density distributions for correct and incorrect
+            matches, I selected a threshold of 0.7 to balance between accepting
+            correct matches while rejecting incorrect ones. This ratio test is
+            more robust than using absolute distance thresholds because it
+            accounts for the varying scales of errors across different features
+            in the feature space. The intuition is that correct matches have
+            substantially lower error than incorrect matches, regardless of the
+            absolute scale of the descriptor values.
+          </p>
+        </div>
+
+        <hr class="section-divider" />
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Matched Features: ParkerM ↔ ParkerR</h3>
+          <div class="image-container">
+            <img
+              src="assets/matches_ParkerM_ParkerR.jpg"
+              alt="Feature Matches"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Feature matches between ParkerM (left) and ParkerR (right) using
+              Lowe's ratio test with threshold=0.7. Found 26 matches (5.2% match
+              rate) out of 500 features. Green circles mark the matched
+              keypoints, and red lines connect corresponding features between
+              the two images. The matches predominantly occur in the overlapping
+              region between the two views, with features on the road, trees,
+              and buildings showing strong correspondence. The relatively low
+              match rate is expected since these images have a significant
+              baseline and viewpoint change, making many features appear
+              differently or fall outside the overlapping region.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Part B.4: RANSAC for Robust Homography and Automatic Stitching -->
+      <section class="part-section">
+        <h2 class="part-title">Part B.4: RANSAC and Automatic Stitching</h2>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Approach</h3>
+          <p class="section-text">
+            I implemented 4-point RANSAC from scratch to robustly estimate
+            homographies in the presence of outlier matches. The algorithm works
+            as follows: (1) Randomly select 4 matched feature pairs, (2) Compute
+            a homography from these 4 points using SVD, (3) Transform all source
+            points and compute distances to their corresponding destination
+            points, (4) Count inliers (matches with distance below a threshold
+            of 5 pixels), (5) Repeat for 1000 iterations and keep the homography
+            with the most inliers. After finding the best model, I recompute the
+            homography using all inlier points for improved accuracy. For
+            creating panoramas, I use the middle image as the reference frame,
+            match features between adjacent pairs, compute homographies using
+            RANSAC, and accumulate transformations. The final mosaic is created
+            by warping all images into a common canvas and blending with
+            distance-based feathering to avoid visible seams.
+          </p>
+        </div>
+
+        <hr class="section-divider" />
+
+        <div class="content-section">
+          <h3 class="section-subtitle">
+            Comparison: Manual vs Automatic Stitching
+          </h3>
+          <p class="section-text">
+            Below are side-by-side comparisons of manually stitched panoramas
+            (from Project 3A, using hand-selected correspondence points) and
+            automatically stitched panoramas (from this part, using detected and
+            matched features with RANSAC). The automatic approach successfully
+            creates panoramas without any manual intervention, demonstrating the
+            effectiveness of the complete pipeline: Harris corner detection,
+            ANMS, feature descriptors, Lowe's ratio test, and RANSAC homography
+            estimation.
+          </p>
+        </div>
+
+        <hr class="section-divider" />
+
+        <!-- Parker Street Panorama Comparison -->
+        <div class="content-section">
+          <h3 class="section-subtitle">Parker Street Panorama</h3>
+
+          <h4 style="margin-top: 20px; margin-bottom: 10px">
+            Manual Stitching (Project 3A)
+          </h4>
+          <div class="image-container">
+            <img
+              src="../project3A/assets/mosaic_L_M_R.jpg"
+              alt="Manual Parker Mosaic"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Manual stitching using 11-18 hand-selected correspondence points
+              per image pair. The homographies were computed from manually
+              clicked points that correspond to the same physical locations in
+              adjacent images. Clean alignment with minimal ghosting, but
+              required tedious manual point selection.
+            </p>
+          </div>
+
+          <h4 style="margin-top: 30px; margin-bottom: 10px">
+            Automatic Stitching (RANSAC)
+          </h4>
+          <div class="image-container">
+            <img
+              src="assets/auto_mosaic_parker.jpg"
+              alt="Automatic Parker Mosaic"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Automatic stitching using RANSAC. ParkerL→ParkerM: 19/28 inliers
+              (67.9%), ParkerR→ParkerM: 24/27 inliers (88.9%). The panorama was
+              created fully automatically from feature detection through final
+              blending. RANSAC successfully filtered out outlier matches,
+              resulting in accurate homographies. The alignment quality is
+              comparable to manual stitching with proper left-to-right ordering,
+              and the process required zero manual intervention. The high inlier
+              rate on the right pair (88.9%) indicates excellent feature
+              matching quality.
+            </p>
+          </div>
+        </div>
+
+        <hr class="section-divider" />
+
+        <!-- Room Panorama Comparison -->
+        <div class="content-section">
+          <h3 class="section-subtitle">Room Panorama</h3>
+
+          <h4 style="margin-top: 20px; margin-bottom: 10px">
+            Manual Stitching (Project 3A)
+          </h4>
+          <div class="image-container">
+            <img
+              src="../project3A/assets/room_mosaic_L_M_R.jpg"
+              alt="Manual Room Mosaic"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Manual stitching of the room panorama using 12-13 hand-selected
+              points per pair. The interior scene with repeating patterns (door
+              panels, window blinds) makes feature matching challenging, but
+              manual selection ensures correct correspondences.
+            </p>
+          </div>
+
+          <h4 style="margin-top: 30px; margin-bottom: 10px">
+            Automatic Stitching (RANSAC)
+          </h4>
+          <div class="image-container">
+            <img
+              src="assets/auto_mosaic_room.jpg"
+              alt="Automatic Room Mosaic"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Automatic stitching using RANSAC. RoomL→RoomM: 24/33 inliers
+              (72.7%), RoomR→RoomM: 11/30 inliers (36.7%). Despite the
+              challenging indoor scene with repetitive patterns and lower
+              texture in some regions, the automatic pipeline successfully
+              created a reasonable panorama. RANSAC filtered out incorrect
+              matches from ambiguous features (e.g., similar-looking door
+              panels). The lower inlier rate on the right pair reflects the
+              difficulty of matching in this indoor environment, but the result
+              still demonstrates robustness to difficult matching conditions.
+            </p>
+          </div>
+        </div>
+
+        <hr class="section-divider" />
+
+        <!-- Dusk Panorama Comparison -->
+        <div class="content-section">
+          <h3 class="section-subtitle">Dusk Scene Panorama (5 Images)</h3>
+
+          <h4 style="margin-top: 20px; margin-bottom: 10px">
+            Manual Stitching (Project 3A)
+          </h4>
+          <div class="image-container">
+            <img
+              src="../project3A/assets/manual_mosaic_dusk.jpg"
+              alt="Manual Dusk Mosaic"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Manual stitching of 5 dusk images arranged in a grid pattern (Top:
+              DuskTL, DuskTR; Bottom: DuskBL, DuskBM, DuskBR). Hand-selected
+              correspondence points ensured accurate alignment of this complex
+              multi-image panorama.
+            </p>
+          </div>
+
+          <h4 style="margin-top: 30px; margin-bottom: 10px">
+            Automatic Stitching (RANSAC)
+          </h4>
+          <div class="image-container">
+            <img
+              src="assets/auto_mosaic_dusk.jpg"
+              alt="Automatic Dusk Mosaic"
+              class="result-image"
+            />
+            <p class="image-caption">
+              Automatic stitching of 5 images arranged in a 2×3 grid pattern
+              (Top: DuskTL, DuskTR; Bottom: DuskBL, DuskBM, DuskBR). Using
+              DuskBM as reference. RANSAC inlier rates: DuskBL→DuskBM: 45/48
+              (93.8%), DuskBR→DuskBM: 84/84 (100.0%), DuskTL→DuskBL: 40/44
+              (90.9%), DuskTR→DuskBR: 63/69 (91.3%). This panorama showcases the
+              algorithm's capability to handle multi-image stitching beyond
+              simple linear arrangements. The dramatic dusk sky with storm
+              clouds, sunset glow, and the illuminated Campanile tower (UC
+              Berkeley) demonstrate excellent alignment across all 5 images. The
+              high inlier rates (90-100%) reflect the strong feature matches in
+              this well-lit scene with distinctive landmarks. The successful
+              stitching of both horizontal (left-middle-right) and vertical
+              (top-bottom) alignments shows the robustness of the RANSAC-based
+              approach for complex panoramic compositions.
+            </p>
+          </div>
+        </div>
+
+        <hr class="section-divider" />
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Analysis and Observations</h3>
+          <p class="section-text">
+            <strong>Key Observations:</strong> (1) The automatic pipeline
+            produces comparable results to manual stitching without human
+            intervention. (2) RANSAC effectively handles outliers, achieving
+            37-100% inlier rates across different scenes, with particularly
+            strong performance (88.9% and 100.0%) on well-textured outdoor
+            scenes. (3) Outdoor scenes with rich texture (Parker Street, Dusk)
+            yield significantly higher match quality than indoor scenes with
+            repetitive patterns. (4) The complete pipeline from corner detection
+            to final mosaic demonstrates the power of combining multiple
+            computer vision techniques. (5) The corrected implementation
+            properly orders images spatially, matching the manual stitching
+            orientation, and produces visually pleasing panoramas with accurate
+            alignment. (6) The dusk panorama with 5 images demonstrates the
+            algorithm's ability to handle complex multi-image arrangements with
+            both horizontal and vertical connections, achieving exceptional
+            inlier rates up to 100%.
+          </p>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>
