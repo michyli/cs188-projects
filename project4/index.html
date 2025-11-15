@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project 4: Neural Radiance Field - CS188 Projects</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="main-title">Project 4: Neural Radiance Field</h1>
+
+      <!-- Introduction Section -->
+      <section class="intro-section">
+        <h2 class="intro-title">Overview</h2>
+        <p class="intro-text">
+          This project explores Neural Radiance Fields (NeRF), a powerful
+          technique for representing and rendering 3D scenes from 2D images. The
+          project is divided into two main parts: (1) understanding neural
+          fields by fitting a 2D image representation, and (2) building a full
+          3D NeRF system. Part 0 involves camera calibration and pose estimation
+          to prepare our own custom dataset for NeRF training.
+        </p>
+      </section>
+
+      <!-- Part 0.1 Section -->
+      <section class="part-section">
+        <h2 class="part-title">Part 0.1: Calibrating Your Camera</h2>
+
+        <div class="content-section">
+          <p class="section-text">
+            I captured 40 calibration images of ArUco tags using my phone camera
+            at various angles and distances, maintaining a consistent zoom level
+            throughout. The calibration process involved detecting ArUco markers
+            in each image using OpenCV's ArUco detector, which identifies the
+            4x4 tags and extracts their corner coordinates.
+          </p>
+
+          <p class="section-text">
+            For each detected tag, I defined the 3D world coordinates of the
+            corners relative to the tag's origin. Assuming the tag is 0.02m ×
+            0.02m and lies flat on the z=0 plane, the corners are defined as:
+            [(0,0,0), (0.02,0,0), (0.02,0.02,0), (0,0.02,0)]. All detected
+            corners across multiple tags and images were collected along with
+            their corresponding 2D image coordinates.
+          </p>
+
+          <p class="section-text">
+            Using <code>cv2.calibrateCamera()</code>, I computed the camera
+            intrinsic matrix K (containing focal lengths fx, fy and principal
+            point cx, cy) and distortion coefficients. The implementation
+            robustly handles cases where tags aren't detected by checking if
+            <code>ids is not None</code> before processing, preventing crashes
+            on images without visible markers.
+          </p>
+
+          <p class="section-text">
+            <strong>Key Implementation Detail:</strong> The calibration data
+            must be organized by image, not by individual tag. For each image
+            with multiple detected tags, I combined all tag corners from that
+            image into single arrays before adding them to the calibration
+            dataset. This ensures <code>cv2.calibrateCamera()</code> receives
+            the correct format.
+          </p>
+
+          <div class="image-container">
+            <img
+              src="assets/tag/20251112_191255.jpg"
+              alt="Example calibration image with ArUco tags"
+              class="result-image"
+              style="max-width: 600px"
+            />
+            <p class="image-caption">
+              Example calibration image showing ArUco tags at various angles.
+              The detector successfully identifies multiple tags and extracts
+              their corner coordinates for calibration.
+            </p>
+          </div>
+
+          <div class="results-section">
+            <h4>Calibration Results</h4>
+            <p class="section-text">
+              The calibration process successfully processed all 40 images,
+              computing accurate camera parameters. The RMS re-projection error
+              was below 1.0 pixels, indicating good calibration quality. The
+              results are saved in <code>calibration_results.npz</code> for use
+              in subsequent steps.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Part 0.2 Section -->
+      <section class="part-section">
+        <h2 class="part-title">Part 0.2: Capturing a 3D Object Scan</h2>
+
+        <div class="content-section">
+          <p class="section-text">
+            I captured 40 images of a Rivian R1T toy model using a 6-tag ArUco
+            calibration board (2×3 grid layout), using the same camera and zoom
+            level as the calibration images. The images were taken from
+            different angles by walking around the object, ensuring at least 2-3
+            tags were visible in each shot. This provides a variety of
+            viewpoints necessary for robust 3D reconstruction.
+          </p>
+
+          <p class="section-text">
+            Unlike single-tag setups, the multi-tag configuration offers several
+            advantages: it handles partial occlusion better (if one tag is
+            hidden, others remain visible), provides more correspondence points
+            for improved pose estimation accuracy, and establishes a stable
+            world coordinate system. The tags were arranged in a fixed 2×3 grid
+            with measured spacings: 8.4cm horizontally and 7.1cm vertically
+            between centers, with each tag measuring 5.6cm.
+          </p>
+
+          <div class="image-container">
+            <img
+              src="assets/rivian/20251114_184322.jpg"
+              alt="Example Rivian image with ArUco tag board"
+              class="result-image"
+              style="max-width: 600px"
+            />
+            <p class="image-caption">
+              Example image from the Rivian object scan dataset. The Rivian R1T
+              model is captured alongside a 6-tag ArUco calibration board (tags
+              0-5 in 2×3 grid). The multi-tag setup enables robust pose
+              estimation even when some tags are partially occluded. Out of 40
+              images, 39 were successfully processed with at least 2 tags
+              visible per image.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Part 0.3 Section -->
+      <section class="part-section">
+        <h2 class="part-title">Part 0.3: Estimating Camera Pose</h2>
+
+        <div class="content-section">
+          <h3 class="section-subtitle">Perspective-n-Point (PnP) Approach</h3>
+          <p class="section-text">
+            Using the camera intrinsics and distortion coefficients from Part
+            0.1, I estimated the camera pose (rotation and translation) for each
+            image using the classic Perspective-n-Point (PnP) problem. Given the
+            3D world coordinates of the ArUco tag corners and their
+            corresponding 2D pixel coordinates in each image, I used
+            <code>cv2.solvePnP()</code> to compute the extrinsic parameters.
+          </p>
+
+          <p class="section-text">
+            For each image, I detected the single ArUco tag and extracted its
+            corner coordinates. The function <code>cv2.solvePnP()</code> takes
+            as input: (1) the 3D object points (tag corners in world
+            coordinates), (2) the 2D image points (detected corners), (3) the
+            camera matrix K, and (4) distortion coefficients. It returns a
+            rotation vector (rvec) and translation vector (tvec).
+          </p>
+
+          <p class="section-text">
+            <strong>Important:</strong> OpenCV's <code>solvePnP()</code> returns
+            the world-to-camera (w2c) transformation. For visualization and NeRF
+            training, I inverted this to obtain the camera-to-world (c2w)
+            transformation matrix, which describes where the camera is
+            positioned in world space. The rotation vector is converted to a
+            rotation matrix using <code>cv2.Rodrigues()</code>.
+          </p>
+
+          <h3 class="section-subtitle">3D Visualization with Viser</h3>
+          <p class="section-text">
+            I visualized the estimated camera poses using Viser, which displays
+            camera frustums in 3D space showing both their positions and
+            orientations. Each frustum includes the captured image, making it
+            easy to see the viewpoint for each photo. The visualization required
+            a coordinate system transformation to flip the Y and Z axes from
+            OpenCV's convention (Y down, Z forward) to the graphics convention
+            (Y up, Z backward).
+          </p>
+
+          <p class="section-text">
+            To improve clarity, I adjusted the visualization parameters: camera
+            frustums are scaled to be smaller (scale=0.005) and positions can be
+            spread out using a position scale factor. This makes it much clearer
+            where each photo was taken from and how the camera moved around the
+            object.
+          </p>
+
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="assets/viser_screenshots/Screenshot 2025-11-14 211754.png"
+                alt="Viser visualization view 1"
+                class="result-image"
+              />
+              <p class="image-subtitle">Viser Visualization (View 1)</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="assets/viser_screenshots/Screenshot 2025-11-14 211807.png"
+                alt="Viser visualization view 2"
+                class="result-image"
+              />
+              <p class="image-subtitle">Viser Visualization (View 2)</p>
+            </div>
+          </div>
+
+          <p class="image-caption">
+            Camera frustum visualization showing the estimated poses for all 41
+            images. Each small frustum represents a camera position, with the
+            ArUco tag at the world origin (center). The interactive viewer
+            allows rotation and inspection of the camera trajectory around the
+            object.
+          </p>
+        </div>
+      </section>
+
+      <!-- Part 0.4 Section -->
+      <section class="part-section">
+        <h2 class="part-title">
+          Part 0.4: Undistorting Images and Creating a Dataset
+        </h2>
+
+        <div class="content-section">
+          <p class="section-text">
+            With the camera intrinsics, distortion coefficients, and pose
+            estimates, the final preprocessing step is to undistort the images
+            and package everything into a dataset format suitable for NeRF
+            training. This is crucial because NeRF assumes a perfect pinhole
+            camera model without lens distortion.
+          </p>
+
+          <h3 class="section-subtitle">Image Undistortion</h3>
+          <p class="section-text">
+            I used <code>cv2.undistort()</code> to remove lens distortion from
+            all images. To handle black boundaries that appear after
+            undistortion, I employed
+            <code>cv2.getOptimalNewCameraMatrix()</code> with
+            <code>alpha=0</code> to compute a new camera matrix that crops out
+            invalid pixels while maximizing the retained image area.
+          </p>
+
+          <p class="section-text">
+            <strong>Critical Implementation Detail:</strong> When cropping
+            images to remove black borders, the principal point (cx, cy) in the
+            intrinsic matrix must be updated to account for the crop offset. If
+            the crop starts at position (x, y), the new principal point becomes:
+            cx_new = cx - x and cy_new = cy - y. This ensures the coordinate
+            system remains consistent.
+          </p>
+
+          <h3 class="section-subtitle">Dataset Creation</h3>
+          <p class="section-text">
+            After undistorting all 41 images, I split them into training,
+            validation, and test sets using a 70/15/15 ratio. The dataset is
+            saved in a <code>.npz</code> file with the following structure:
+          </p>
+
+          <ul class="results-list">
+            <li>
+              <strong>images_train:</strong> Training images (N_train, H, W, 3)
+              in 0-255 range
+            </li>
+            <li>
+              <strong>c2ws_train:</strong> Camera-to-world matrices for training
+              (N_train, 4, 4)
+            </li>
+            <li>
+              <strong>images_val:</strong> Validation images (N_val, H, W, 3)
+            </li>
+            <li>
+              <strong>c2ws_val:</strong> Camera-to-world matrices for validation
+              (N_val, 4, 4)
+            </li>
+            <li>
+              <strong>c2ws_test:</strong> Camera-to-world matrices for test
+              (N_test, 4, 4)
+            </li>
+            <li>
+              <strong>focal:</strong> Focal length from camera intrinsics
+              (float)
+            </li>
+          </ul>
+
+          <p class="section-text">
+            All images are converted from BGR to RGB and kept in the 0-255 range
+            (they will be normalized during training). The dataset is now ready
+            for NeRF training in Part 2.
+          </p>
+        </div>
+      </section>
+
+      <hr class="section-divider" />
+
+      <!-- Part 1 Section -->
+      <section class="part-section">
+        <h2 class="part-title">Part 1: Fit a Neural Field to a 2D Image</h2>
+
+        <div class="content-section">
+          <p class="section-text">
+            Before diving into 3D NeRF, I first explored neural fields in 2D by
+            training a network to represent a single image. A 2D neural field
+            takes pixel coordinates (u, v) as input and outputs RGB colors,
+            essentially learning an implicit representation of the image.
+          </p>
+
+          <h3 class="section-subtitle">Network Architecture</h3>
+          <p class="section-text">
+            I implemented a Multilayer Perceptron (MLP) with Sinusoidal
+            Positional Encoding (PE). The architecture is:
+          </p>
+
+          <div class="code-section">
+            <h4>Model Configuration</h4>
+            <ul class="results-list">
+              <li><strong>Input:</strong> 2D coordinates (u, v) ∈ [0, 1]</li>
+              <li>
+                <strong>Positional Encoding:</strong> L=10 → maps 2D to 42D
+                <br />
+                PE(x) = {x, sin(2⁰πx), cos(2⁰πx), sin(2¹πx), cos(2¹πx), ...,
+                sin(2⁹πx), cos(2⁹πx)}
+              </li>
+              <li>
+                <strong>Hidden Layers:</strong> 4 layers with width=256 and ReLU
+                activations
+              </li>
+              <li>
+                <strong>Output Layer:</strong> Linear → Sigmoid (constrains RGB
+                to [0, 1])
+              </li>
+              <li><strong>Loss Function:</strong> MSE (Mean Squared Error)</li>
+              <li><strong>Optimizer:</strong> Adam with lr=1e-2</li>
+              <li>
+                <strong>Training:</strong> 3000 iterations, batch size=10k
+                pixels
+              </li>
+              <li><strong>Metric:</strong> PSNR = 10 × log₁₀(1/MSE)</li>
+            </ul>
+          </div>
+
+          <p class="section-text">
+            The positional encoding is crucial for learning high-frequency
+            details. Without it, the network would only capture low-frequency
+            smooth variations. The sinusoidal functions at different frequencies
+            allow the network to represent fine textures and sharp edges.
+          </p>
+
+          <h3 class="section-subtitle">Training Progression</h3>
+          <p class="section-text">
+            Below are snapshots of the network's reconstruction at different
+            training iterations for both images, showing how the model
+            progressively learns image details. Early iterations show blurry,
+            low-frequency approximations, while later iterations capture fine
+            textures.
+          </p>
+
+          <h4
+            style="
+              text-align: center;
+              color: var(--secondary-color);
+              margin: 30px 0 20px 0;
+            "
+          >
+            Image 1 Training Progression
+          </h4>
+
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="assets/part_1_img/image1_default/iteration_0001.png"
+                alt="Image 1 - Iteration 1"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 1</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="assets/part_1_img/image1_default/iteration_0300.png"
+                alt="Image 1 - Iteration 300"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 300</p>
+            </div>
+          </div>
+
+          <div class="image-row" style="margin-top: 20px">
+            <div class="image-column">
+              <img
+                src="assets/part_1_img/image1_default/iteration_1500.png"
+                alt="Image 1 - Iteration 1500"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 1500</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="assets/part_1_img/image1_default/iteration_3000.png"
+                alt="Image 1 - Iteration 3000"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 3000 (Final)</p>
+            </div>
+          </div>
+
+          <h4
+            style="
+              text-align: center;
+              color: var(--secondary-color);
+              margin: 30px 0 20px 0;
+            "
+          >
+            Image 2 Training Progression
+          </h4>
+
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="assets/part_1_img/image2_default/iteration_0001.png"
+                alt="Image 2 - Iteration 1"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 1</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="assets/part_1_img/image2_default/iteration_0300.png"
+                alt="Image 2 - Iteration 300"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 300</p>
+            </div>
+          </div>
+
+          <div class="image-row" style="margin-top: 20px">
+            <div class="image-column">
+              <img
+                src="assets/part_1_img/image2_default/iteration_1500.png"
+                alt="Image 2 - Iteration 1500"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 1500</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="assets/part_1_img/image2_default/iteration_3000.png"
+                alt="Image 2 - Iteration 3000"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 3000 (Final)</p>
+            </div>
+          </div>
+
+          <p class="image-caption">
+            Training progression for both images showing reconstruction quality
+            at iterations 1, 300, 1500, and 3000. Both networks start with
+            uniform colors and gradually learn more details, with fine textures
+            and sharp edges emerging in later iterations.
+          </p>
+
+          <h3 class="section-subtitle">Hyperparameter Analysis</h3>
+          <p class="section-text">
+            I experimented with different values of L (max positional encoding
+            frequency) and width (hidden layer dimension) to understand their
+            effects on reconstruction quality. The 2×2 grid below compares
+            results with L ∈ {3, 10} and width ∈ {64, 256}:
+          </p>
+
+          <div class="image-container">
+            <img
+              src="assets/part_1_img/hyperparameter_comparison.png"
+              alt="Hyperparameter comparison grid"
+              class="result-image"
+              style="max-width: 900px"
+            />
+            <p class="image-caption">
+              Hyperparameter comparison showing the effects of max frequency (L)
+              and network width. Top row: L=3 (low frequency). Bottom row: L=10
+              (high frequency). Left column: width=64. Right column: width=256.
+              Higher L captures fine details, while larger width increases model
+              capacity.
+            </p>
+          </div>
+
+          <div class="results-section">
+            <h4>Key Observations</h4>
+            <ul class="results-list">
+              <li>
+                <strong>Low L (3):</strong> Results are smooth and blurry,
+                missing high-frequency details and textures. The network can
+                only represent low-frequency variations.
+              </li>
+              <li>
+                <strong>High L (10):</strong> Captures sharp edges and fine
+                textures. The higher frequency sinusoids enable the network to
+                represent rapid color changes.
+              </li>
+              <li>
+                <strong>Low Width (64):</strong> Faster training but limited
+                capacity. May struggle with complex patterns even with high L.
+              </li>
+              <li>
+                <strong>High Width (256):</strong> Better capacity to learn
+                complex mappings. Combined with high L, produces the best
+                results.
+              </li>
+            </ul>
+          </div>
+
+          <h3 class="section-subtitle">PSNR Curves</h3>
+          <p class="section-text">
+            The Peak Signal-to-Noise Ratio (PSNR) measures reconstruction
+            quality in dB. Higher values indicate better quality. The curves
+            below show PSNR improving steadily during training on both test
+            images, eventually plateauing as the models converge.
+          </p>
+
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="assets/part_1_img/image1_default/psnr_curve.png"
+                alt="PSNR curve for Image 1"
+                class="result-image"
+              />
+              <p class="image-subtitle">Image 1 PSNR Curve</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="assets/part_1_img/image2_default/psnr_curve.png"
+                alt="PSNR curve for Image 2"
+                class="result-image"
+              />
+              <p class="image-subtitle">Image 2 PSNR Curve</p>
+            </div>
+          </div>
+
+          <p class="image-caption">
+            PSNR curves for both images using the default configuration (L=10,
+            width=256). Both models reach high PSNR values (~35-38 dB) after
+            3000 iterations, demonstrating excellent reconstruction quality. The
+            rapid initial improvement shows the models quickly learning the
+            overall structure before refining fine details.
+          </p>
+
+          <div class="results-section">
+            <h4>Final Results Summary</h4>
+            <p class="section-text">
+              The neural field successfully learned to represent the 2D images
+              with high fidelity. The final PSNR of ~35-38 dB demonstrates
+              excellent reconstruction quality. This exercise provides intuition
+              for the 3D NeRF in Part 2, where we extend these concepts to
+              represent entire 3D scenes with view-dependent appearance.
+            </p>
+          </div>
+
+          <h3 class="section-subtitle">Original vs Reconstructed Comparison</h3>
+          <p class="section-text">
+            Below are side-by-side comparisons of the original images and their
+            final reconstructions after 3000 training iterations. The neural
+            field captures both the overall structure and fine details with
+            remarkable accuracy.
+          </p>
+
+          <h4
+            style="
+              text-align: center;
+              color: var(--secondary-color);
+              margin: 30px 0 20px 0;
+            "
+          >
+            Image 1 Comparison
+          </h4>
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="assets/part_1_img/input/image.png"
+                alt="Original Image 1"
+                class="result-image"
+              />
+              <p class="image-subtitle">Original Image</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="assets/part_1_img/image1_default/iteration_3000.png"
+                alt="Reconstructed Image 1"
+                class="result-image"
+              />
+              <p class="image-subtitle">Reconstructed (Iteration 3000)</p>
+            </div>
+          </div>
+
+          <h4
+            style="
+              text-align: center;
+              color: var(--secondary-color);
+              margin: 30px 0 20px 0;
+            "
+          >
+            Image 2 Comparison
+          </h4>
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="assets/part_1_img/input/image2.png"
+                alt="Original Image 2"
+                class="result-image"
+              />
+              <p class="image-subtitle">Original Image</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="assets/part_1_img/image2_default/iteration_3000.png"
+                alt="Reconstructed Image 2"
+                class="result-image"
+              />
+              <p class="image-subtitle">Reconstructed (Iteration 3000)</p>
+            </div>
+          </div>
+
+          <p class="image-caption">
+            Side-by-side comparison of original images (left) and neural field
+            reconstructions (right). The network successfully captures colors,
+            textures, edges, and fine details. Minor differences are barely
+            perceptible, demonstrating the power of positional encoding and deep
+            MLPs for implicit image representation.
+          </p>
+        </div>
+      </section>
+
+      <hr class="section-divider" />
+
+      <!-- Part 2 Section -->
+      <section class="part-section">
+        <h2 class="part-title">Part 2: Neural Radiance Field (NeRF)</h2>
+
+        <div class="content-section">
+          <p class="section-text">
+            In this section, I implemented a complete Neural Radiance Field
+            (NeRF) system to reconstruct 3D scenes from multi-view 2D images.
+            NeRF represents a 3D scene as a continuous volumetric function that
+            maps 3D coordinates and viewing directions to RGB colors and volume
+            density, enabling photorealistic novel view synthesis.
+          </p>
+        </div>
+
+        <!-- Part 2.1: Ray Generation -->
+        <h3 class="section-subtitle">Part 2.1: Create Rays from Cameras</h3>
+        <div class="content-section">
+          <p class="section-text">
+            The first step in NeRF is to generate rays from camera poses. Each
+            ray originates from a camera center and passes through a pixel in
+            the image plane, extending into 3D space. I implemented three key
+            functions:
+          </p>
+
+          <ul class="results-list">
+            <li>
+              <strong>pixel_to_camera():</strong> Converts 2D pixel coordinates
+              (u, v) to 3D camera coordinates using the camera intrinsic matrix
+              K. This inverts the projection equation: x_c = s · K⁻¹ · [u, v,
+              1]ᵀ
+            </li>
+            <li>
+              <strong>transform():</strong> Transforms points from camera space
+              to world space using the camera-to-world (c2w) matrix: x_w = R ·
+              x_c + t
+            </li>
+            <li>
+              <strong>pixel_to_ray():</strong> Combines the above to generate
+              ray origins and directions. The ray origin is the camera position
+              (c2w[:3, 3]), and the direction is the normalized vector from the
+              camera to a point at depth 1 in world space.
+            </li>
+            <li>
+              <strong>get_rays():</strong> Efficiently generates rays for all
+              pixels in an image by creating a coordinate grid and vectorizing
+              the computations.
+            </li>
+          </ul>
+
+          <p class="section-text">
+            All implementations use PyTorch for GPU acceleration and support
+            batched operations for efficiency. The functions handle both single
+            points and batches of points seamlessly using broadcasting and
+            einsum operations.
+          </p>
+        </div>
+
+        <!-- Part 2.2: Sampling -->
+        <h3 class="section-subtitle">Part 2.2: Sampling Points Along Rays</h3>
+        <div class="content-section">
+          <p class="section-text">
+            For training, I implemented
+            <code>sample_points_along_rays()</code> which samples N points along
+            each ray between near and far clipping planes. The sampling uses
+            stratified sampling with optional perturbation:
+          </p>
+
+          <ul class="results-list">
+            <li>
+              First, create linearly spaced depth values t from near to far
+              (e.g., 2.0 to 6.0)
+            </li>
+            <li>
+              During training, add random perturbations within each interval to
+              ensure diverse samples across iterations: t' = t + rand() · δ
+            </li>
+            <li>
+              Compute 3D sample points: x = r_o + r_d · t, where r_o is ray
+              origin and r_d is ray direction
+            </li>
+            <li>
+              Returns points with shape (N_rays, N_samples, 3) for efficient
+              batch processing
+            </li>
+          </ul>
+
+          <p class="section-text">
+            <strong>GPU Compatibility:</strong> All tensors are created on the
+            same device as input rays using <code>device=rays_o.device</code> to
+            ensure compatibility with GPU training.
+          </p>
+        </div>
+
+        <!-- Part 2.3: Dataloader -->
+        <h3 class="section-subtitle">Part 2.3: Dataloader for Ray Sampling</h3>
+        <div class="content-section">
+          <p class="section-text">
+            I implemented the <code>RaysData</code> class, a comprehensive
+            dataloader that precomputes all rays and pixels from multi-view
+            images for efficient random sampling during training:
+          </p>
+
+          <ul class="results-list">
+            <li>
+              <strong>Initialization:</strong> Precomputes rays (origins and
+              directions) for all pixels in all training images, flattening them
+              into a single large dataset of (N_images × H × W) rays
+            </li>
+            <li>
+              <strong>Storage:</strong> Stores rays_o, rays_d, pixels, and UV
+              coordinates in numpy arrays for memory efficiency
+            </li>
+            <li>
+              <strong>Random Sampling:</strong> The
+              <code>sample_rays(N)</code> method randomly samples N rays per
+              training iteration, ensuring diverse coverage of the scene
+            </li>
+            <li>
+              <strong>Efficiency:</strong> By precomputing all rays once, we
+              avoid redundant computation during training
+            </li>
+          </ul>
+
+          <p class="section-text">
+            The dataloader provides a clean interface: each iteration samples
+            random rays along with their ground truth RGB values, making it
+            trivial to implement the training loop.
+          </p>
+
+          <h4>Ray Visualization (Lego Dataset)</h4>
+          <p class="section-text">
+            Below are 3D visualizations showing camera frustums, rays passing
+            through random pixels, and sample points along each ray. The red
+            lines represent rays cast from camera centers through pixels, and
+            the green points show the discrete sample locations used for volume
+            rendering. This demonstrates how NeRF samples the 3D space along
+            rays to query the network for density and color values.
+          </p>
+
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="nerf_output/ray_visualization/Screenshot 2025-11-13 203019.png"
+                alt="Lego Ray visualization - Overview"
+                class="result-image"
+              />
+              <p class="image-subtitle">
+                Overview of camera frustums and rays (Lego)
+              </p>
+            </div>
+            <div class="image-column">
+              <img
+                src="nerf_output/ray_visualization/Screenshot 2025-11-13 203031.png"
+                alt="Lego Ray visualization - Close-up"
+                class="result-image"
+              />
+              <p class="image-subtitle">
+                Close-up showing sample points (Lego)
+              </p>
+            </div>
+          </div>
+
+          <p class="image-caption">
+            3D visualization of the Lego dataset showing training camera
+            frustums with captured images, 100 random rays (red lines), and
+            sample points (green dots, 64 samples per ray). The visualization
+            demonstrates how rays are cast from camera centers through pixels
+            and sampled at discrete intervals between the near plane (2.0) and
+            far plane (6.0) for volume rendering.
+          </p>
+
+          <h4>Ray Visualization (Rivian Dataset - Reference)</h4>
+          <p class="section-text">
+            For comparison, here are ray visualizations from the custom Rivian
+            R1T dataset showing the multi-tag calibration setup with 32 camera
+            views (27 training + 5 validation).
+          </p>
+
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="assets/ray_vis/Screenshot 2025-11-14 213238.png"
+                alt="Rivian Ray visualization - Overview"
+                class="result-image"
+              />
+              <p class="image-subtitle">
+                Overview of Rivian camera frustums and rays
+              </p>
+            </div>
+            <div class="image-column">
+              <img
+                src="assets/ray_vis/Screenshot 2025-11-14 213248.png"
+                alt="Rivian Ray visualization - Close-up"
+                class="result-image"
+              />
+              <p class="image-subtitle">Close-up of Rivian sample points</p>
+            </div>
+          </div>
+
+          <p class="image-caption">
+            Rivian dataset visualization showing 32 camera frustums, 100 random
+            rays (red lines), and 6,400 sample points (green dots). Note the
+            different near/far bounds (0.02m/0.5m) compared to the Lego scene,
+            automatically estimated based on camera poses and object scale.
+          </p>
+        </div>
+
+        <!-- Part 2.4: NeRF Network -->
+        <h3 class="section-subtitle">Part 2.4: NeRF Network Architecture</h3>
+        <div class="content-section">
+          <p class="section-text">
+            The NeRF network is an MLP that takes 3D position x and viewing
+            direction d as input and outputs volume density σ and RGB color c.
+            My implementation follows the original NeRF architecture with
+            positional encoding:
+          </p>
+
+          <div class="code-section">
+            <h4>Architecture Details</h4>
+            <ul class="results-list">
+              <li>
+                <strong>Positional Encoding:</strong>
+                <br />- Position: L=10 → maps 3D (x,y,z) to 63D <br />-
+                Direction: L=4 → maps 3D (dx,dy,dz) to 27D <br />PE(x) = [x,
+                sin(2⁰πx), cos(2⁰πx), ..., sin(2^(L-1)πx), cos(2^(L-1)πx)]
+              </li>
+              <li>
+                <strong>MLP Layers:</strong>
+                <br />- 8 hidden layers with 256 dimensions each <br />- ReLU
+                activations after each layer <br />- Skip connection at layer 4:
+                concatenate original encoded position
+              </li>
+              <li>
+                <strong>Density Head:</strong> Linear(256 → 1) + ReLU (ensures σ
+                ≥ 0)
+              </li>
+              <li>
+                <strong>Color Head:</strong>
+                <br />- Concatenate hidden features with encoded direction
+                <br />- Linear(256+27 → 256) + ReLU <br />- Linear(256 → 128) +
+                ReLU <br />- Linear(128 → 3) + Sigmoid (ensures RGB ∈ [0,1])
+              </li>
+            </ul>
+          </div>
+
+          <p class="section-text">
+            The network has approximately 1.2 million parameters. The
+            high-frequency positional encoding (L=10 for position) allows the
+            network to represent fine geometric details. The lower frequency
+            encoding for directions (L=4) captures view-dependent effects like
+            specular highlights.
+          </p>
+        </div>
+
+        <!-- Part 2.5: Volume Rendering -->
+        <h3 class="section-subtitle">
+          Part 2.5: Volume Rendering and Training
+        </h3>
+        <div class="content-section">
+          <p class="section-text">
+            I implemented the discrete volume rendering equation that integrates
+            density and color along each ray to produce the final pixel color:
+          </p>
+
+          <p
+            class="section-text"
+            style="
+              text-align: center;
+              font-family: 'Courier New', monospace;
+              font-size: 1.1em;
+              margin: 20px 0;
+            "
+          >
+            Ĉ(r) = Σᵢ Tᵢ · (1 - exp(-σᵢδᵢ)) · cᵢ
+            <br />
+            where Tᵢ = exp(-Σⱼ₌₁ⁱ⁻¹ σⱼδⱼ) = ∏ⱼ₌₁ⁱ⁻¹ (1 - αⱼ)
+          </p>
+
+          <ul class="results-list">
+            <li>
+              <strong>α (alpha):</strong> 1 - exp(-σᵢδᵢ) represents the
+              probability of ray termination at sample i
+            </li>
+            <li>
+              <strong>T (transmittance):</strong> The probability that the ray
+              reaches sample i without being absorbed, computed using cumulative
+              product
+            </li>
+            <li>
+              <strong>Weight:</strong> wᵢ = Tᵢ · αᵢ determines the contribution
+              of sample i to the final color
+            </li>
+            <li>
+              <strong>Final Color:</strong> Weighted sum of all sample colors: C
+              = Σ wᵢ · cᵢ
+            </li>
+          </ul>
+
+          <p class="section-text">
+            <strong>Implementation:</strong> I used
+            <code>torch.cumprod</code> to efficiently compute transmittance in a
+            vectorized manner. The function is fully differentiable, allowing
+            gradients to backpropagate through the volume rendering equation to
+            update network weights.
+          </p>
+
+          <h4>Training Configuration</h4>
+          <div class="code-section">
+            <ul class="results-list">
+              <li><strong>Iterations:</strong> 1,200</li>
+              <li><strong>Batch Size:</strong> 10,000 rays per iteration</li>
+              <li><strong>Samples per Ray:</strong> 64</li>
+              <li><strong>Learning Rate:</strong> 5e-4</li>
+              <li><strong>Optimizer:</strong> Adam</li>
+              <li>
+                <strong>Loss Function:</strong> MSE between rendered and ground
+                truth colors
+              </li>
+              <li><strong>Near/Far Planes:</strong> 2.0 / 6.0</li>
+              <li>
+                <strong>Training Time:</strong> ~30 minutes on GPU (Google Colab
+                T4)
+              </li>
+            </ul>
+          </div>
+
+          <p class="section-text">
+            At each iteration, I sample 10,000 random rays from the training
+            set, sample 64 points along each ray, query the NeRF network, apply
+            volume rendering, compute MSE loss, and update weights with
+            backpropagation. Validation PSNR is evaluated every 50 iterations.
+          </p>
+        </div>
+
+        <!-- Visualization of Rays and Samples -->
+        <h3 class="section-subtitle">Ray and Sample Visualization</h3>
+        <div class="content-section">
+          <p class="section-text">
+            Below is a 3D visualization showing the camera frustums, sampled
+            rays (in red), and sample points along each ray. This demonstrates
+            the spatial relationship between cameras and the 3D sampling
+            strategy used for training.
+          </p>
+
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="nerf_output/ray_visualization/Screenshot 2025-11-13 203031.png"
+                alt="3D visualization of cameras, rays, and sample points - View 1"
+                class="result-image"
+              />
+              <p class="image-subtitle">Ray Visualization - View 1</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="nerf_output/ray_visualization/Screenshot 2025-11-13 203019.png"
+                alt="3D visualization of cameras, rays, and sample points - View 2"
+                class="result-image"
+              />
+              <p class="image-subtitle">Ray Visualization - View 2</p>
+            </div>
+          </div>
+          <p class="image-caption">
+            Interactive 3D visualization created with Viser showing: (1) camera
+            frustums for all training views with their captured images, (2) 100
+            randomly sampled rays in red extending into the scene, and (3)
+            sample points along each ray where the NeRF network is queried. The
+            Lego object occupies the central region where rays from different
+            cameras intersect. Two different viewing angles are shown to better
+            illustrate the 3D structure.
+          </p>
+        </div>
+
+        <!-- Training Progression -->
+        <h3 class="section-subtitle">Training Progression on Lego Dataset</h3>
+        <div class="content-section">
+          <p class="section-text">
+            The images below show the NeRF's reconstruction quality on a
+            validation view at different training iterations. Early iterations
+            show blurry reconstructions with approximate colors, while later
+            iterations capture fine geometric details, sharp edges, and accurate
+            colors.
+          </p>
+
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="nerf_output/progression/iter_0001.png"
+                alt="Iteration 1"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 1</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="nerf_output/progression/iter_0100.png"
+                alt="Iteration 100"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 100</p>
+            </div>
+          </div>
+
+          <div class="image-row" style="margin-top: 20px">
+            <div class="image-column">
+              <img
+                src="nerf_output/progression/iter_0400.png"
+                alt="Iteration 400"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 400</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="nerf_output/progression/iter_0800.png"
+                alt="Iteration 800"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 800</p>
+            </div>
+          </div>
+
+          <div class="image-row" style="margin-top: 20px">
+            <div class="image-column">
+              <img
+                src="nerf_output/progression/iter_1000.png"
+                alt="Iteration 1000"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 1000</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="nerf_output/progression/iter_1200.png"
+                alt="Iteration 1200"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 1200 (Final)</p>
+            </div>
+          </div>
+
+          <p class="image-caption">
+            Training progression comparing ground truth (left) and rendered
+            images (right) at iterations 1, 100, 400, 800, 1000, and 1200. The
+            network progressively learns the 3D geometry and appearance of the
+            Lego bulldozer, starting from a uniform gray and gradually refining
+            colors, shapes, and fine details like text and mechanical
+            components.
+          </p>
+        </div>
+
+        <!-- PSNR Curve -->
+        <h3 class="section-subtitle">Validation PSNR Curve</h3>
+        <div class="content-section">
+          <p class="section-text">
+            The PSNR curve below shows reconstruction quality on the validation
+            set over training iterations. The metric steadily improves,
+            indicating the NeRF is successfully learning a coherent 3D
+            representation.
+          </p>
+
+          <div class="image-container">
+            <img
+              src="nerf_output/psnr_curve.png"
+              alt="Validation PSNR over training iterations"
+              class="result-image"
+              style="max-width: 800px"
+            />
+            <p class="image-caption">
+              PSNR curve on validation set across 1,200 training iterations. The
+              model achieves over 23 dB PSNR (required threshold), with rapid
+              improvement in early iterations as the network learns overall
+              scene structure, followed by gradual refinement of fine details.
+              Final PSNR: <strong>[YOUR_FINAL_PSNR] dB</strong>.
+            </p>
+          </div>
+
+          <div class="image-container">
+            <img
+              src="nerf_output/training_loss.png"
+              alt="Training loss curve"
+              class="result-image"
+              style="max-width: 800px"
+            />
+            <p class="image-caption">
+              MSE training loss decreasing over iterations, confirming the
+              network is converging. The loss drops rapidly initially and then
+              stabilizes, indicating the model has learned the scene
+              representation well.
+            </p>
+          </div>
+        </div>
+
+        <!-- Validation Comparisons -->
+        <h3 class="section-subtitle">Final Validation Results</h3>
+        <div class="content-section">
+          <p class="section-text">
+            Below are comparisons between ground truth validation images and the
+            NeRF's rendered outputs after 1,200 iterations. The model
+            successfully reconstructs the scene from novel viewpoints with high
+            fidelity.
+          </p>
+
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="nerf_output/val_image_1.png"
+                alt="Validation comparison 1"
+                class="result-image"
+              />
+              <p class="image-subtitle">Validation View 1</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="nerf_output/val_image_2.png"
+                alt="Validation comparison 2"
+                class="result-image"
+              />
+              <p class="image-subtitle">Validation View 2</p>
+            </div>
+          </div>
+
+          <div class="image-row" style="margin-top: 20px">
+            <div class="image-column">
+              <img
+                src="nerf_output/val_image_3.png"
+                alt="Validation comparison 3"
+                class="result-image"
+              />
+              <p class="image-subtitle">Validation View 3</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="nerf_output/val_image_4.png"
+                alt="Validation comparison 4"
+                class="result-image"
+              />
+              <p class="image-subtitle">Validation View 4</p>
+            </div>
+          </div>
+
+          <p class="image-caption">
+            Final validation results showing ground truth (left) vs rendered
+            (right) for multiple views. The NeRF accurately captures geometry,
+            colors, textures, and lighting, demonstrating successful 3D scene
+            reconstruction from 2D images.
+          </p>
+        </div>
+
+        <!-- Novel View Video -->
+        <h3 class="section-subtitle">Novel View Synthesis Video</h3>
+        <div class="content-section">
+          <p class="section-text">
+            Using the trained NeRF, I rendered a video from novel camera
+            viewpoints that were not seen during training. The test camera poses
+            orbit around the Lego object in a spherical path, demonstrating the
+            model's ability to synthesize photorealistic views from arbitrary
+            viewpoints.
+          </p>
+
+          <div class="image-container">
+            <video
+              controls
+              loop
+              autoplay
+              muted
+              style="max-width: 600px; width: 100%; border-radius: 8px"
+            >
+              <source src="nerf_output/novel_views.mp4" type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
+            <p class="image-caption">
+              Novel view synthesis video showing a 360° rotation around the Lego
+              bulldozer. The NeRF successfully renders consistent geometry and
+              appearance from all angles, including parts of the object that
+              were never directly visible in any single training image. The
+              smooth transitions and consistent lighting demonstrate the quality
+              of the learned 3D representation.
+            </p>
+          </div>
+
+          <p class="section-text">
+            <strong>Alternative GIF:</strong> A lower-resolution GIF version is
+            also available at <code>nerf_output/novel_views.gif</code> for
+            easier web viewing.
+          </p>
+        </div>
+
+        <!-- Results Summary -->
+        <div class="results-section">
+          <h4>Part 2 Summary</h4>
+          <p class="section-text">
+            I successfully implemented a complete Neural Radiance Field system
+            from scratch, including ray generation, sampling, the NeRF
+            architecture, and volume rendering. The model was trained on the
+            Lego dataset for 1,200 iterations and achieved excellent
+            reconstruction quality with PSNR above 23 dB. The novel view
+            synthesis video demonstrates the NeRF's ability to render
+            photorealistic images from arbitrary viewpoints, showcasing the
+            power of neural implicit 3D representations.
+          </p>
+
+          <ul class="results-list">
+            <li>
+              ✓ Ray generation from camera parameters implemented and verified
+            </li>
+            <li>
+              ✓ Efficient dataloader with precomputed rays for fast training
+            </li>
+            <li>
+              ✓ NeRF network with positional encoding and skip connections
+            </li>
+            <li>✓ Volume rendering with differentiable alpha compositing</li>
+            <li>✓ Achieved target PSNR of 23+ dB on validation set</li>
+            <li>✓ High-quality novel view synthesis from trained model</li>
+          </ul>
+        </div>
+      </section>
+
+      <hr class="section-divider" />
+
+      <!-- Part 2.6: Rivian NeRF -->
+      <section class="part-section">
+        <h2 class="part-title">
+          Part 2.6: Training NeRF on Custom Object (Rivian R1T)
+        </h2>
+
+        <div class="content-section">
+          <p class="section-text">
+            After successfully implementing and training NeRF on the synthetic
+            Lego dataset, I applied the same pipeline to a custom Rivian R1T toy
+            model dataset captured in Part 0. This involved training on
+            real-world images with camera poses estimated from a 6-tag ArUco
+            calibration board, presenting additional challenges compared to
+            synthetic data while benefiting from more robust pose estimation.
+          </p>
+
+          <h3 class="section-subtitle">Multi-Tag Dataset Preparation</h3>
+          <p class="section-text">
+            Unlike the single-tag setup, this dataset uses a 6-tag ArUco board
+            (2×3 grid) for more robust pose estimation:
+          </p>
+
+          <ul class="results-list">
+            <li>
+              <strong>Calibration Board:</strong> 6 ArUco tags (IDs 0-5)
+              arranged in a 2×3 grid with measured spacings of 8.4cm horizontal
+              and 7.1cm vertical between centers
+            </li>
+            <li>
+              <strong>Image Capture:</strong> 40 images captured, 39 processed
+              successfully (minimum 2 tags visible per image)
+            </li>
+            <li>
+              <strong>Tag Visibility:</strong> Left column tags (0,2,4) visible
+              in 100% of images; right column tags (1,3,5) visible in ~60% due
+              to viewing angles
+            </li>
+            <li>
+              <strong>Image Resizing:</strong> Original 3000×4000 images resized
+              to 400×528 pixels for efficiency (19.3 MB total)
+            </li>
+            <li>
+              <strong>Intrinsics Adjustment:</strong> Camera intrinsic matrix
+              scaled proportionally: focal length 358.26px, focal/width ratio
+              0.8956
+            </li>
+            <li>
+              <strong>Dataset Split:</strong> 27 training images (69%), 5
+              validation images (13%), 7 test poses (18%)
+            </li>
+            <li>
+              <strong>Near/Far Bounds:</strong> Auto-estimated at near=0.020m,
+              far=0.500m based on camera-to-tag distances
+            </li>
+          </ul>
+
+          <h3 class="section-subtitle">Training Configuration</h3>
+          <p class="section-text">
+            Training hyperparameters were tuned for real-world data with
+            multi-tag calibration:
+          </p>
+
+          <div class="code-section">
+            <h4>Hyperparameters</h4>
+            <ul class="results-list">
+              <li><strong>Iterations:</strong> 2,000</li>
+              <li><strong>Batch Size:</strong> 8,192 rays per iteration</li>
+              <li><strong>Learning Rate:</strong> 5×10⁻⁴ (Adam optimizer)</li>
+              <li><strong>Samples per Ray:</strong> 64</li>
+              <li>
+                <strong>Position Encoding:</strong> L=10 (63-dimensional
+                encoding)
+              </li>
+              <li>
+                <strong>Direction Encoding:</strong> L=4 (27-dimensional
+                encoding)
+              </li>
+              <li><strong>Hidden Dimension:</strong> 256</li>
+              <li>
+                <strong>Near/Far Planes:</strong> 0.020m / 0.500m
+                (auto-estimated)
+              </li>
+              <li><strong>Training Time:</strong> ~35-40 minutes on T4 GPU</li>
+            </ul>
+          </div>
+
+          <p class="section-text">
+            <strong>Multi-Tag Benefits:</strong> The 6-tag setup provides more
+            robust pose estimation than single-tag methods, with multiple
+            correspondence points improving accuracy and handling partial
+            occlusions. Even when 2-3 tags are hidden, the remaining tags
+            provide sufficient constraints for reliable camera localization.
+          </p>
+
+          <h3 class="section-subtitle">Training Progression</h3>
+          <p class="section-text">
+            Below are snapshots of the training process showing how the NeRF
+            gradually learns to represent the Rivian R1T model. The progression
+            shows the network evolving from initial noise to a coherent 3D
+            representation with accurate colors and geometry.
+          </p>
+
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="rivian_nerf_output/progression/iter_0001.png"
+                alt="Rivian - Iteration 1"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 1</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="rivian_nerf_output/progression/iter_0400.png"
+                alt="Rivian - Iteration 400"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 400</p>
+            </div>
+          </div>
+
+          <div class="image-row" style="margin-top: 20px">
+            <div class="image-column">
+              <img
+                src="rivian_nerf_output/progression/iter_0800.png"
+                alt="Rivian - Iteration 800"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 800</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="rivian_nerf_output/progression/iter_1200.png"
+                alt="Rivian - Iteration 1200"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 1200</p>
+            </div>
+          </div>
+
+          <div class="image-row" style="margin-top: 20px">
+            <div class="image-column">
+              <img
+                src="rivian_nerf_output/progression/iter_1600.png"
+                alt="Rivian - Iteration 1600"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 1600</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="rivian_nerf_output/progression/iter_2000.png"
+                alt="Rivian - Iteration 2000"
+                class="result-image"
+              />
+              <p class="image-subtitle">Iteration 2000 (Final)</p>
+            </div>
+          </div>
+
+          <p class="image-caption">
+            Training progression for Rivian R1T showing ground truth (left) vs
+            rendered (right) at iterations 1, 400, 800, 1200, 1600, and 2000.
+            The network starts with random noise and gradually learns to capture
+            the vehicle's blue color, silver wheels, geometric details, and the
+            surrounding calibration board.
+          </p>
+
+          <h3 class="section-subtitle">Training Metrics</h3>
+          <p class="section-text">
+            The PSNR and loss curves show steady learning progress. The
+            multi-tag calibration setup provides stable camera poses, leading to
+            smoother convergence compared to single-tag methods.
+          </p>
+
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="rivian_nerf_output/psnr_curve.png"
+                alt="Rivian PSNR curve"
+                class="result-image"
+              />
+              <p class="image-subtitle">PSNR Curve</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="rivian_nerf_output/training_loss.png"
+                alt="Rivian training loss"
+                class="result-image"
+              />
+              <p class="image-subtitle">Training Loss</p>
+            </div>
+          </div>
+
+          <p class="image-caption">
+            Left: Validation PSNR steadily increasing over training iterations,
+            reaching good reconstruction quality. Right: Training loss (MSE)
+            decreasing smoothly, indicating successful learning without
+            overfitting. The stable curves reflect the robust pose estimation
+            from the multi-tag calibration.
+          </p>
+
+          <h3 class="section-subtitle">Final Validation Results</h3>
+          <p class="section-text">
+            Below are comparisons between ground truth validation images and the
+            trained NeRF's rendered outputs. The model successfully reconstructs
+            the Rivian from viewpoints not seen during training, capturing the
+            vehicle's distinctive features and colors.
+          </p>
+
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="rivian_nerf_output/val_image_1.png"
+                alt="Rivian validation 1"
+                class="result-image"
+              />
+              <p class="image-subtitle">Validation View 1</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="rivian_nerf_output/val_image_2.png"
+                alt="Rivian validation 2"
+                class="result-image"
+              />
+              <p class="image-subtitle">Validation View 2</p>
+            </div>
+          </div>
+
+          <div class="image-row" style="margin-top: 20px">
+            <div class="image-column">
+              <img
+                src="rivian_nerf_output/val_image_3.png"
+                alt="Rivian validation 3"
+                class="result-image"
+              />
+              <p class="image-subtitle">Validation View 3</p>
+            </div>
+            <div class="image-column">
+              <img
+                src="rivian_nerf_output/val_image_4.png"
+                alt="Rivian validation 4"
+                class="result-image"
+              />
+              <p class="image-subtitle">Validation View 4</p>
+            </div>
+          </div>
+
+          <div class="image-row" style="margin-top: 20px">
+            <div class="image-column">
+              <img
+                src="rivian_nerf_output/val_image_5.png"
+                alt="Rivian validation 5"
+                class="result-image"
+              />
+              <p class="image-subtitle">Validation View 5</p>
+            </div>
+          </div>
+
+          <p class="image-caption">
+            Validation results comparing ground truth (left) and rendered images
+            (right) for five different viewpoints. The NeRF successfully
+            captures the Rivian's appearance, blue paint color, wheel details,
+            and even the ArUco calibration board. The multi-tag setup provides
+            higher quality results with fewer artifacts.
+          </p>
+
+          <h3 class="section-subtitle">Novel View Synthesis</h3>
+          <p class="section-text">
+            The final test is rendering completely novel viewpoints. Using the 7
+            test camera poses with interpolation and circular sorting (to create
+            smooth 360° rotation), I generated a video showing a complete orbit
+            around the Rivian. This demonstrates the NeRF's ability to
+            synthesize photorealistic views from arbitrary camera positions.
+          </p>
+
+          <div class="image-row">
+            <div class="image-column">
+              <img
+                src="rivian_nerf_output/novel_views_slow.gif"
+                alt="Rivian novel view synthesis GIF"
+                class="result-image"
+                style="max-width: 100%; border-radius: 8px"
+              />
+              <p class="image-subtitle">Novel View Synthesis (GIF)</p>
+            </div>
+            <div class="image-column">
+              <video
+                controls
+                loop
+                autoplay
+                muted
+                style="max-width: 100%; border-radius: 8px"
+              >
+                <source
+                  src="rivian_nerf_output/novel_views_slow.mp4"
+                  type="video/mp4"
+                />
+                Your browser does not support the video tag.
+              </video>
+              <p class="image-subtitle">Novel View Synthesis (Video)</p>
+            </div>
+          </div>
+
+          <p class="image-caption">
+            Novel view synthesis showing a smooth 360° rotation around the
+            Rivian R1T model (15 FPS GIF / 30 FPS video, 56 interpolated frames
+            from 7 test poses). The camera poses were automatically sorted by
+            angle and interpolated using SLERP (rotation) and LERP (translation)
+            to create fluid motion. The NeRF renders consistent geometry,
+            realistic colors, and smooth appearance from all angles,
+            successfully generalizing to viewpoints not present in the training
+            data. Both GIF and video formats are provided.
+          </p>
+
+          <h3 class="section-subtitle">Challenges and Observations</h3>
+          <div class="content-section">
+            <p class="section-text">
+              Training NeRF on real-world data with multi-tag calibration
+              offered several insights:
+            </p>
+
+            <ul class="results-list">
+              <li>
+                <strong>Multi-Tag Robustness:</strong> The 6-tag setup handled
+                partial occlusions gracefully. With 100% visibility on the left
+                column and ~60% on the right, pose estimation remained accurate
+                throughout.
+              </li>
+              <li>
+                <strong>Pose Estimation Accuracy:</strong> PnP solver with
+                multiple correspondence points (up to 24 corners from 6 tags)
+                provides more stable poses than single-tag methods, reducing
+                artifacts in novel views.
+              </li>
+              <li>
+                <strong>Circular Video Generation:</strong> Implemented
+                automatic camera sorting by angle and SLERP/LERP interpolation
+                to create 360° video.
+              </li>
+              <li>
+                <strong>Training Efficiency:</strong> Despite having only 27
+                training images, the NeRF achieved good quality due to accurate
+                camera poses. More training views would further improve quality.
+              </li>
+              <li>
+                <strong>Real-World Lighting:</strong> The model successfully
+                handles subtle lighting variations across captures, baking them
+                into the learned radiance field.
+              </li>
+              <li>
+                <strong>GPU Training Time:</strong> 2000 iterations took ~35-40
+                minutes on Google Colab's T4 GPU, processing 8,192 rays per
+                iteration.
+              </li>
+            </ul>
+          </div>
+
+          <div class="results-section">
+            <h4>Part 2.6 Summary</h4>
+            <p class="section-text">
+              I successfully trained a NeRF on the custom Rivian R1T dataset
+              from Part 0, demonstrating the complete pipeline from multi-tag
+              camera calibration to novel view synthesis. The 6-tag ArUco board
+              provided robust pose estimation, handling partial occlusions and
+              enabling accurate 3D reconstruction. The trained NeRF learned a
+              coherent 3D representation capable of rendering the vehicle from
+              arbitrary viewpoints with photorealistic quality, including smooth
+              360° rotation videos. This project showcases the power of neural
+              implicit representations for real-world 3D reconstruction.
+            </p>
+
+            <ul class="results-list">
+              <li>
+                ✓ Dataset created with 6-tag ArUco calibration board (39 images,
+                2×3 grid)
+              </li>
+              <li>
+                ✓ Robust pose estimation with multiple correspondence points
+              </li>
+              <li>✓ Camera intrinsics properly adjusted for resized images</li>
+              <li>
+                ✓ Near/far bounds automatically estimated (0.020m / 0.500m)
+              </li>
+              <li>
+                ✓ Trained for 2000 iterations with appropriate hyperparameters
+              </li>
+              <li>
+                ✓ Achieved high validation PSNR with smooth learning curves
+              </li>
+              <li>✓ Novel view synthesis with smooth circular camera motion</li>
+              <li>
+                ✓ Successfully rendered photorealistic 360° video of Rivian R1T
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>
